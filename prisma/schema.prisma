@@ -1,0 +1,117 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+// ------------------------------------
+// ENUMS
+// ------------------------------------
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum IngestionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ------------------------------------
+// MODELS
+// ------------------------------------
+
+model User {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  email      String   @unique
+  password   String   
+  role       Role     @default(EMPLOYEE)
+  
+  // Edge Case 4: Department-level access
+  department String?  // e.g., "HR", "ENGINEERING", "LEGAL"
+  
+  createdBy  String?  @db.ObjectId 
+  isActive   Boolean  @default(true) // Edge Case 3: Soft deletes for employees
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Document {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  filename        String
+  fileType        String   
+  uploadedBy      String          @db.ObjectId 
+  
+  // Edge Case 1: Track if the Gemini embedding process crashed
+  ingestionStatus IngestionStatus @default(PENDING)
+  errorMessage    String?         // Stores the API error if FAILED
+  
+  // Security & RBAC
+  allowedRole     Role            @default(EMPLOYEE) 
+  department      String?         // If null, all departments can view
+  
+  // Edge Case 3: Soft Deletes
+  isActive        Boolean         @default(true) 
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  chunks          DocumentChunk[]
+
+  @@map("documents")
+}
+
+model DocumentChunk {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // Edge Case 2: Keep track of chunk order for Context Windowing
+  chunkIndex  Int      
+  text        String   
+  embedding   Float[]  
+  
+  documentId  String   @db.ObjectId
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  // Hard-copied metadata for MongoDB Atlas Vector Pre-Filtering
+  allowedRole Role     
+  department  String?
+  isActive    Boolean  @default(true) 
+
+  createdAt   DateTime @default(now())
+
+  @@map("document_chunks")
+}
+
+enum WorkflowStatus {
+  PENDING
+  EXECUTED
+  DISCARDED
+}
+
+model WorkflowDraft {
+  id           String         @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String         @db.ObjectId
+  query        String
+  sourceChunks String[]
+  draftType    String
+  draftContent Json
+  status       WorkflowStatus @default(PENDING)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@map("workflow_drafts")
+}

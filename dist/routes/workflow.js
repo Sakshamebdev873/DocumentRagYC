@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const workflow_controller_1 = require("../controllers/workflow.controller");
+const auth_1 = require("../middlewares/auth");
+const router = (0, express_1.Router)();
+router.use(auth_1.requireAuth);
+router.get("/pending", workflow_controller_1.getPendingWorkflows);
+router.post("/:id/action", workflow_controller_1.updateWorkflowStatus);
+exports.default = router;

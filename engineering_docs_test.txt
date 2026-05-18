@@ -1,0 +1,14 @@
+INTERNAL ENGINEERING DOCUMENTATION
+Department: Engineering
+Project: Project Phoenix (Q2 2026)
+
+1. Database Architecture
+We are migrating from PostgreSQL to MongoDB Atlas Vector Search for all AI-related features. The primary index is named 'vector_index' and uses a 768-dimensional embedding model (Gemini).
+
+2. Deployment Pipeline
+All production deployments must pass through the staging environment first. The CI/CD pipeline is hosted on GitHub Actions. Any pull requests requiring infrastructure changes must be reviewed by the DevOps lead.
+
+3. API Rate Limiting
+The core API currently rate-limits clients to 100 requests per minute using a Redis token bucket algorithm.
+
+End of Document.
