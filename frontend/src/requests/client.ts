@@ -20,15 +20,43 @@ function buildHeaders(token?: string, headers?: Record<string, string>) {
   return merged;
 }
 
+function extractErrorMessage(status: number, rawText: string) {
+  const trimmed = rawText.trim();
+
+  if (!trimmed) {
+    return `Request failed with status ${status}`;
+  }
+
+  if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html")) {
+    return "The server returned an unexpected HTML page. Please try again in a moment.";
+  }
+
+  return trimmed.length > 220 ? `${trimmed.slice(0, 217)}...` : trimmed;
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
-  const json = await response.json();
-  const parsed = decryptBody<T>(json);
+  const rawText = await response.text();
+
+  let parsedJson: unknown;
+  if (rawText) {
+    try {
+      parsedJson = JSON.parse(rawText);
+    } catch {
+      if (!response.ok) {
+        throw new Error(extractErrorMessage(response.status, rawText));
+      }
+
+      throw new Error("The server returned an invalid response. Please try again.");
+    }
+  }
+
+  const parsed = decryptBody<T>((parsedJson ?? {}) as T);
 
   if (!response.ok) {
     const message =
       typeof parsed === "object" && parsed && "error" in parsed
         ? String((parsed as { error?: string }).error)
-        : `Request failed with status ${response.status}`;
+        : extractErrorMessage(response.status, rawText);
     throw new Error(message);
   }
 
@@ -43,12 +71,24 @@ export async function request<T>(path: string, options: RequestOptions = {}) {
     finalHeaders["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    method,
-    headers: finalHeaders,
-    cache,
-    body: formData ?? (body ? JSON.stringify(encryptBody(body)) : undefined),
-  });
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      method,
+      headers: finalHeaders,
+      cache,
+      body: formData ?? (body ? JSON.stringify(encryptBody(body)) : undefined),
+    });
 
-  return parseResponse<T>(response);
+    return parseResponse<T>(response);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes("Failed to fetch")) {
+        throw new Error("Network error. Please check your connection and try again.");
+      }
+
+      throw error;
+    }
+
+    throw new Error("Unexpected network error. Please try again.");
+  }
 }
