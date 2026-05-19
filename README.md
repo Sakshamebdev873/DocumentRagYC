@@ -216,7 +216,7 @@ Environment variables on Render:
 Set `CORS_ORIGIN` to your frontend URL, for example:
 
 ```env
-CORS_ORIGIN=https://your-frontend.vercel.app
+CORS_ORIGIN=https://document-rag-yc.vercel.app
 ```
 
 ### Frontend on Vercel
@@ -231,7 +231,7 @@ Environment variables on Vercel:
 Example:
 
 ```env
-NEXT_PUBLIC_API_URL=https://your-render-api.onrender.com/api
+NEXT_PUBLIC_API_URL=https://documentragyc.onrender.com/api
 NEXT_PUBLIC_OBFUSCATION_KEY=your-shared-obfuscation-key
 ```
 
