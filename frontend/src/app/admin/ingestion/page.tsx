@@ -1,125 +1,116 @@
-"use client";
+﻿"use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import styles from "../../page.module.css";
-import Link from "next/link";
+import { useState } from "react";
+import { AppShell } from "@/components/AppShell";
+import { GlassCard } from "@/components/GlassCard";
+import { uploadDocument } from "@/requests";
+import { useSession } from "@/lib/useSession";
 
-import { api } from "../../../lib/api";
-
-export default function AdminIngestion() {
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+export default function IngestionPage() {
+  const { ready, user, token } = useSession({ requireAdmin: true });
+  const [file, setFile] = useState<File | null>(null);
   const [department, setDepartment] = useState("");
-  const [allowedRole, setAllowedRole] = useState("EMPLOYEE");
-  const router = useRouter();
+  const [allowedRole, setAllowedRole] = useState<"EMPLOYEE" | "ADMIN">("EMPLOYEE");
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const savedToken = localStorage.getItem("token");
-    if (!savedToken) {
-      router.push("/");
-    } else {
-      setToken(savedToken);
-    }
-  }, [router]);
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  async function handleUpload(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     if (!file || !token) return;
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("allowedRole", allowedRole);
-    if (department.trim() !== "") {
-      formData.append("department", department.trim());
-    }
-
     setLoading(true);
-    try {
-      // isFormData = true flag passed to our global api client
-      await api.post("/upload", formData, true);
-      alert("File uploaded successfully and is being processed.");
-      setDepartment("");
-    } catch (err: any) {
-      alert("Upload failed: " + err.message);
-    }
-    setLoading(false);
-  };
+    setError(null);
+    setMessage(null);
 
-  if (!token) return null;
+    try {
+      const result = await uploadDocument(
+        {
+          file,
+          department: department || undefined,
+          allowedRole,
+        },
+        token,
+      );
+      setMessage(`${result.message} | ID ${result.documentId}`);
+      setFile(null);
+      setDepartment("");
+      setAllowedRole("EMPLOYEE");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!ready) return null;
 
   return (
-    <main className={styles.container} style={{ justifyContent: "flex-start" }}>
-      <header className={styles.header}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <h1 className={styles.title} style={{ fontSize: "1.5rem", marginBottom: 0 }}>
-            Admin: Secure Data Ingestion
-          </h1>
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <Link href="/dashboard" className="btn btn-ghost" style={{ display: "inline-flex", alignItems: "center" }}>
-            Back to Workspace
-          </Link>
-          <Link href="/admin/rbac" className="btn btn-ghost" style={{ display: "inline-flex", alignItems: "center" }}>
-            RBAC Settings
-          </Link>
-          <Link href="/admin/monitor" className="btn btn-ghost" style={{ display: "inline-flex", alignItems: "center" }}>
-            System Monitor
-          </Link>
-        </div>
-      </header>
-
-      <div style={{ width: "100%", maxWidth: "1440px", marginTop: "24px" }}>
-        <div className="card" style={{ maxWidth: "600px", margin: "0 auto" }}>
-          <h2 style={{marginTop: 0, fontSize: "18px", fontWeight: 600}}>Upload Organization Knowledge</h2>
-          <p style={{color: "var(--foreground-muted)", fontSize: "14px", marginBottom: "24px"}}>
-            Select a document to securely vectorize and ingest into the RAG database.
-          </p>
-          
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginBottom: "24px" }}>
-            <div>
-              <label style={{ fontSize: "12px", fontWeight: "bold", color: "var(--foreground-muted)", marginBottom: "8px", display: "block" }}>
-                Target Department (Leave blank for Global access)
-              </label>
+    <AppShell user={user}>
+      <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+        <GlassCard title="Upload protected documents" subtitle="Send PDF or spreadsheet files into the ingestion pipeline with role and department visibility.">
+          <form onSubmit={handleUpload} className="space-y-4">
+            <label className="block rounded-3xl border border-dashed border-cyan-300/35 bg-black/20 p-8 text-center transition hover:border-cyan-300/60 hover:bg-white/6">
               <input
-                type="text"
-                className="input"
-                placeholder="e.g. HR, ENGINEERING, LEGAL"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
+                type="file"
+                required
+                accept=".pdf,.xlsx,.xls,.csv,.txt,.doc,.docx"
+                className="hidden"
+                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
               />
+              <span className="block text-lg font-medium">{file ? file.name : "Choose a document to upload"}</span>
+              <span className="mt-2 block text-sm text-zinc-400">PDF, spreadsheet, text, or office files</span>
+            </label>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm text-zinc-300">Allowed role</label>
+                <select
+                  value={allowedRole}
+                  onChange={(event) => setAllowedRole(event.target.value as "EMPLOYEE" | "ADMIN")}
+                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 outline-none"
+                >
+                  <option value="EMPLOYEE">EMPLOYEE</option>
+                  <option value="ADMIN">ADMIN</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-zinc-300">Department</label>
+                <input
+                  value={department}
+                  onChange={(event) => setDepartment(event.target.value)}
+                  placeholder="HR, ENGINEERING, LEGAL"
+                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 outline-none"
+                />
+              </div>
             </div>
 
-            <div>
-              <label style={{ fontSize: "12px", fontWeight: "bold", color: "var(--foreground-muted)", marginBottom: "8px", display: "block" }}>
-                Minimum Clearance Level
-              </label>
-              <select className="input" value={allowedRole} onChange={(e) => setAllowedRole(e.target.value)}>
-                <option value="EMPLOYEE">Standard Employee</option>
-                <option value="ADMIN">Admin Only</option>
-              </select>
-            </div>
-          </div>
+            {message ? <p className="text-sm text-emerald-300">{message}</p> : null}
+            {error ? <p className="text-sm text-rose-300">{error}</p> : null}
 
-          <div style={{ 
-            border: "1px dashed var(--border)", 
-            padding: "48px", 
-            borderRadius: "4px",
-            textAlign: "center",
-            backgroundColor: "var(--background)"
-          }}>
-            <div className={styles.fileUpload}>
-              <button className="btn btn-primary" disabled={loading}>
-                {loading ? "PROCESSING..." : "SELECT FILE"}
-              </button>
-              <input type="file" onChange={handleUpload} accept=".pdf,.txt,.xlsx,.csv" disabled={loading} />
-            </div>
-            <div style={{ marginTop: "16px", fontSize: "12px", fontFamily: "var(--font-mono)", color: "var(--foreground-muted)" }}>
-              Supported: PDF, TXT, XLSX, CSV
-            </div>
+            <button className="rounded-full bg-cyan-400 px-5 py-3 font-medium text-slate-950 transition hover:scale-[1.02] disabled:opacity-70" disabled={loading || !file}>
+              {loading ? "Uploading..." : "Start ingestion"}
+            </button>
+          </form>
+        </GlassCard>
+
+        <GlassCard title="Ingestion policy" subtitle="Reflects your backend rules around admin-only documents and department scoping.">
+          <div className="space-y-4 text-sm leading-7 text-zinc-300">
+            <Policy title="Role-aware uploads" text="Only admins can upload documents restricted to the ADMIN role." />
+            <Policy title="Department filters" text="Leave department empty for global visibility, or assign a unit for narrower access." />
+            <Policy title="Async processing" text="Uploads return a processing acknowledgement while embeddings and chunking happen server-side." />
           </div>
-        </div>
+        </GlassCard>
       </div>
-    </main>
+    </AppShell>
+  );
+}
+
+function Policy({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+      <p className="font-semibold text-white">{title}</p>
+      <p className="mt-2 text-zinc-400">{text}</p>
+    </div>
   );
 }

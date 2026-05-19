@@ -1,55 +1,97 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import styles from "../../page.module.css";
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import { AppShell } from "@/components/AppShell";
+import { GlassCard } from "@/components/GlassCard";
+import { getPendingWorkflows, updateWorkflowAction } from "@/requests";
+import { useSession } from "@/lib/useSession";
+import type { WorkflowDraft } from "@/lib/types";
 
-export default function AdminMonitor() {
-  const router = useRouter();
+export default function MonitorPage() {
+  const { ready, user, token } = useSession();
+  const [drafts, setDrafts] = useState<WorkflowDraft[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("token");
-    if (!savedToken) {
-      router.push("/");
+    if (!ready || !token) return;
+    void loadDrafts(token);
+  }, [ready, token]);
+
+  async function loadDrafts(authToken: string) {
+    try {
+      const pending = await getPendingWorkflows(authToken);
+      setDrafts(pending);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load workflows");
     }
-  }, [router]);
+  }
+
+  async function act(id: string, action: "EXECUTE" | "DISCARD") {
+    if (!token) return;
+    try {
+      await updateWorkflowAction(id, action, token);
+      setMessage(`Workflow ${action.toLowerCase()}d.`);
+      await loadDrafts(token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update workflow");
+    }
+  }
+
+  if (!ready) return null;
 
   return (
-    <main className={styles.container} style={{ justifyContent: "flex-start" }}>
-      <header className={styles.header}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <h1 className={styles.title} style={{ fontSize: "1.5rem", marginBottom: 0 }}>
-            Data Ingestion Monitor
-          </h1>
-          <span className="status-chip status-secure" style={{ fontFamily: "var(--font-mono)" }}>
-            PIPELINE HEALTHY
-          </span>
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <Link href="/admin/ingestion" className="btn btn-ghost" style={{ display: "inline-flex", alignItems: "center" }}>
-            Data Ingestion
-          </Link>
-          <Link href="/dashboard" className="btn btn-ghost" style={{ display: "inline-flex", alignItems: "center" }}>
-            Back to Workspace
-          </Link>
-        </div>
-      </header>
-
-      <div style={{ width: "100%", maxWidth: "1440px", marginTop: "24px" }}>
-        <div className="card">
-          <h2 style={{marginTop: 0, fontSize: "18px", fontWeight: 600}}>Vectorization Queue</h2>
-          
-          <div className={styles.terminalLog} style={{ fontFamily: "var(--font-mono)", marginTop: "16px" }}>
-            <div className={styles.terminalTitle}>SYSTEM LOG: /var/log/ingestion</div>
-            <div>[2023-10-27 14:32:01] INFO  - Chunking policy_Q3.pdf... SUCCESS (128 chunks)</div>
-            <div>[2023-10-27 14:32:05] INFO  - Embedding generating via text-embedding-004...</div>
-            <div>[2023-10-27 14:32:18] INFO  - Uploading vectors to MongoDB Atlas... SUCCESS</div>
-            <div>[2023-10-27 14:32:20] INFO  - Index update triggered...</div>
-            <div style={{ color: "var(--secondary)" }}>[2023-10-27 14:32:21] INFO  - Document ingested and secured successfully.</div>
+    <AppShell user={user}>
+      <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+        <GlassCard title="Operational summary" subtitle="Lightweight observability for the human review loop.">
+          <div className="grid gap-4">
+            <Metric label="Pending drafts" value={String(drafts.length)} />
+            <Metric label="Mode" value="Human-in-the-loop" />
+            <Metric label="Action endpoint" value="POST /workflow/:id/action" />
           </div>
-        </div>
+          {message ? <p className="mt-4 text-sm text-emerald-300">{message}</p> : null}
+          {error ? <p className="mt-2 text-sm text-rose-300">{error}</p> : null}
+        </GlassCard>
+
+        <GlassCard title="Draft queue" subtitle="Cards animate in and let reviewers process pending workflows directly.">
+          <div className="grid gap-4">
+            {drafts.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-white/15 bg-black/20 p-6 text-sm text-zinc-400">
+                Queue is empty.
+              </div>
+            ) : (
+              drafts.map((draft, index) => (
+                <div
+                  key={draft.id}
+                  className="rounded-3xl border border-white/10 bg-black/20 p-5 animate-[rise_0.8s_ease]"
+                  style={{ animationDelay: `${index * 90}ms` }}
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">{draft.draftType}</p>
+                      <h3 className="mt-2 text-lg font-semibold">{String(draft.draftContent.title ?? draft.query)}</h3>
+                      <p className="mt-2 text-sm leading-7 text-zinc-400">Created {new Date(draft.createdAt).toLocaleString()}</p>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={() => act(draft.id, "EXECUTE")} className="rounded-full bg-emerald-400 px-4 py-2 text-sm font-medium text-slate-950 transition hover:scale-[1.02]">Execute</button>
+                      <button onClick={() => act(draft.id, "DISCARD")} className="rounded-full border border-white/15 px-4 py-2 text-sm font-medium transition hover:border-rose-300/40 hover:bg-rose-400/10">Discard</button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </GlassCard>
       </div>
-    </main>
+    </AppShell>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+      <p className="text-sm text-zinc-400">{label}</p>
+      <p className="mt-2 text-xl font-semibold break-words">{value}</p>
+    </div>
   );
 }

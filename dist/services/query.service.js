@@ -3,62 +3,52 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.executeQuery = void 0;
 const prisma_1 = require("../config/prisma");
 const gemini_1 = require("../config/gemini");
+// Helper function for Cosine Similarity (Fallback for Atlas Vector Search)
+function cosineSimilarity(A, B) {
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    for (let i = 0; i < A.length; i++) {
+        dotProduct += A[i] * B[i];
+        normA += A[i] * A[i];
+        normB += B[i] * B[i];
+    }
+    if (normA === 0 || normB === 0)
+        return 0;
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
 const executeQuery = async (queryText, user) => {
     // 1. Generate query embedding
     const result = await gemini_1.embeddingModel.embedContent(queryText);
     const queryEmbedding = result.embedding.values;
-    // 2. Enforce DB-Level RBAC Filters for MongoDB Vector Search
-    const filterCriteria = {
-        isActive: true,
-    };
-    if (user.role !== "ADMIN") {
-        filterCriteria.allowedRole = "EMPLOYEE";
-    }
-    else {
-        filterCriteria.allowedRole = { $in: ["ADMIN", "EMPLOYEE"] };
-    }
-    if (user.department) {
-        filterCriteria.department = { $in: [user.department, null] };
-    }
-    // 3. Raw MongoDB Vector Search via Prisma $runCommandRaw
-    const searchResult = await prisma_1.prisma.$runCommandRaw({
-        aggregate: "document_chunks",
-        pipeline: [
-            {
-                $vectorSearch: {
-                    index: "vector_index", // Requires an Atlas Vector Search index named 'vector_index'
-                    path: "embedding",
-                    queryVector: queryEmbedding,
-                    numCandidates: 100,
-                    limit: 5,
-                    filter: filterCriteria,
-                }
-            },
-            {
-                $project: {
-                    _id: 1,
-                    text: 1,
-                    score: { $meta: "vectorSearchScore" },
-                    documentId: 1,
-                    chunkIndex: 1,
-                }
-            }
-        ],
-        cursor: {}
+    // 2. Fetch all permissible chunks (Enforcing DB-Level RBAC Filters)
+    const allowedRoles = user.role === "ADMIN" ? ["ADMIN", "EMPLOYEE"] : ["EMPLOYEE"];
+    const allChunks = await prisma_1.prisma.documentChunk.findMany({
+        where: {
+            isActive: true,
+            allowedRole: { in: allowedRoles },
+            OR: [
+                { department: user.department },
+                { department: null }
+            ]
+        }
     });
-    const rawDocs = searchResult.cursor?.firstBatch || [];
+    // 3. Fallback: Perform Cosine Similarity in JavaScript
+    const scoredDocs = allChunks.map(chunk => ({
+        ...chunk,
+        score: cosineSimilarity(queryEmbedding, chunk.embedding)
+    })).sort((a, b) => b.score - a.score).slice(0, 5);
+    const rawDocs = scoredDocs;
     if (rawDocs.length === 0) {
         throw new Error("No relevant context found within your access level.");
     }
     const contextText = rawDocs.map(doc => doc.text).join("\n\n");
-    const sourceChunks = rawDocs.map(doc => doc._id.$oid);
-    // 4. Agentic Drafting via Gemini 1.5 Pro with Structured Tools
-    const prompt = `You are an AI Employee. You have been asked to fulfill the following request: "${queryText}".
-Use the following strict organizational context to fulfill it:
+    const sourceChunks = rawDocs.map(doc => doc.id);
+    const prompt = `You are a helpful AI Employee. You have been asked to fulfill the following request: "${queryText}".
+Here is the retrieved organizational context:
 ${contextText}
 
-If the context does not contain the answer, reply that you don't know based on the provided documents.`;
-    // Provide tool schema for deterministic drafting
+Use the context to answer the user's request. If the context doesn't have the exact answer, do your best to summarize what is related, or provide a helpful general response while clarifying what is or isn't in the official company documents.`;
     const draftTool = {
         name: "draft_document",
         description: "Drafts a document based on user request and organization context.",
@@ -92,10 +82,24 @@ If the context does not contain the answer, reply that you don't know based on t
     const response = await chat.sendMessage(prompt);
     // Extract Function Call (Tool) Output
     const functionCall = response.response.functionCalls()?.[0];
+    let args;
     if (!functionCall || functionCall.name !== "draft_document") {
-        throw new Error("The AI failed to generate a structured draft document.");
+        const textFallback = response.response.text();
+        if (textFallback) {
+            args = {
+                draftType: "AI Response",
+                title: "Agent Reply",
+                content: textFallback,
+                actionItems: []
+            };
+        }
+        else {
+            throw new Error("The AI failed to generate a structured draft document and returned no text.");
+        }
     }
-    const args = functionCall.args;
+    else {
+        args = functionCall.args;
+    }
     // 5. Save the Human-In-The-Loop Draft
     const workflowDraft = await prisma_1.prisma.workflowDraft.create({
         data: {

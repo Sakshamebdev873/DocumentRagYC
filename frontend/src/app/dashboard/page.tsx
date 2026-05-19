@@ -1,156 +1,168 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import styles from "../page.module.css";
-import Link from "next/link";
-import { api, getUser } from "../../lib/api";
-import EmployeeWorkspace from "../../components/EmployeeWorkspace";
+import { useEffect, useState } from "react";
+import { AppShell } from "@/components/AppShell";
+import { GlassCard } from "@/components/GlassCard";
+import { getPendingWorkflows, runQuery, updateWorkflowAction } from "@/requests";
+import { useSession } from "@/lib/useSession";
+import type { WorkflowDraft } from "@/lib/types";
 
-export default function Dashboard() {
-  const [token, setToken] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
+export default function DashboardPage() {
+  const { ready, user, token } = useSession();
   const [query, setQuery] = useState("");
-  const [workflows, setWorkflows] = useState<any[]>([]);
+  const [drafts, setDrafts] = useState<WorkflowDraft[]>([]);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("token");
-    if (!savedToken) {
-      router.push("/");
-    } else {
-      setToken(savedToken);
-      const user = getUser();
-      if (user && user.role) {
-        setUserRole(user.role);
-      }
-      if (user?.role === "ADMIN") {
-        fetchWorkflows();
-      }
-    }
-  }, [router]);
+    if (!ready || !token) return;
+    void refreshDrafts(token);
+  }, [ready, token]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    router.push("/");
-  };
-
-  const fetchWorkflows = async () => {
+  async function refreshDrafts(authToken: string) {
     try {
-      const data = await api.get("/workflow/pending");
-      setWorkflows(data);
+      const data = await getPendingWorkflows(authToken);
+      setDrafts(data);
     } catch (err) {
-      console.error(err);
+      setError(err instanceof Error ? err.message : "Failed to load drafts");
     }
-  };
+  }
 
-  const handleQuery = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query || !token) return;
+  async function submitQuery(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token) return;
+
     setLoading(true);
+    setError(null);
+    setMessage(null);
+
     try {
-      await api.post("/query", { query });
+      const draft = await runQuery(query, token);
+      setMessage(`Draft created: ${draft.draftType}`);
       setQuery("");
-      fetchWorkflows();
-    } catch (err: any) {
-      console.log(err.message);
-
-      alert("Error: " + err.message);
+      await refreshDrafts(token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Query failed");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  };
+  }
 
-  const handleAction = async (id: string, action: "EXECUTE" | "DISCARD") => {
+  async function handleAction(id: string, action: "EXECUTE" | "DISCARD") {
+    if (!token) return;
+
+    setError(null);
     try {
-      await api.patch(`/workflow/${id}`, { action });
-      fetchWorkflows();
-    } catch (err: any) {
-      alert("Action failed: " + err.message);
+      await updateWorkflowAction(id, action, token);
+      await refreshDrafts(token);
+      setMessage(`Draft ${action === "EXECUTE" ? "executed" : "discarded"}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Action failed");
     }
-  };
+  }
 
-  if (!token || !userRole) return null;
+  if (!ready) return null;
 
   return (
-    <main className={styles.container} style={{ justifyContent: "flex-start" }}>
-      <header className={styles.header} style={{ marginBottom: "24px" }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <h1 className={styles.title} style={{ fontSize: "1.5rem", marginBottom: 0 }}>
-            {userRole === "ADMIN" ? "Admin Workspace" : "Employee Workspace"}
-          </h1>
-          <span className="status-chip status-secure" style={{ fontFamily: "var(--font-mono)" }}>
-            System Active
-          </span>
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {userRole === "ADMIN" && (
-            <Link href="/admin/ingestion" className="btn btn-ghost" style={{ display: "inline-flex", alignItems: "center" }}>
-              Admin Tools
-            </Link>
-          )}
-          <button onClick={handleLogout} className="btn btn-ghost">
-            Logout
-          </button>
-        </div>
-      </header>
-
-      {userRole === "EMPLOYEE" ? (
-        <EmployeeWorkspace token={token} />
-      ) : (
-        <div className={styles.dashboard}>
-          {/* Left Column: Admin Agent Console */}
-          <div className="card">
-            <h2 style={{ marginTop: 0, fontSize: "18px", fontWeight: 600 }}>Agent Console</h2>
-            <form onSubmit={handleQuery} className={styles.queryBox}>
-              <textarea
-                className="input"
-                rows={6}
-                style={{ fontFamily: "var(--font-mono)" }}
-                placeholder="> Enter prompt for AI Agent..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-              <button type="submit" className="btn btn-primary" disabled={loading}>
-                {loading ? "EXECUTING..." : "EXECUTE"}
+    <AppShell user={user}>
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <GlassCard
+          title="Ask the knowledge engine"
+          subtitle="Submit a secure prompt. The backend will create a human-review workflow draft from permitted document context."
+        >
+          <form onSubmit={submitQuery} className="space-y-4">
+            <textarea
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              required
+              rows={6}
+              placeholder="Draft a regulatory summary for our HR retention policy changes..."
+              className="w-full rounded-3xl border border-white/10 bg-black/20 px-5 py-4 text-sm text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/8"
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                disabled={loading}
+                className="rounded-full bg-cyan-400 px-5 py-3 font-medium text-slate-950 transition duration-300 hover:scale-[1.02] hover:bg-cyan-300 disabled:opacity-70"
+              >
+                {loading ? "Generating draft..." : "Generate workflow draft"}
               </button>
-            </form>
+              {message ? <p className="text-sm text-emerald-300">{message}</p> : null}
+              {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+            </div>
+          </form>
+        </GlassCard>
+
+        <GlassCard title="Session context" subtitle="Your current access scope determines which document chunks can be retrieved.">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+            <Stat label="Role" value={user?.role ?? "-"} />
+            <Stat label="Department" value={user?.department ?? "Global"} />
+            <Stat label="Pending drafts" value={String(drafts.length)} />
           </div>
+        </GlassCard>
+      </div>
 
-          {/* Right Column: Admin Workflow Approvals */}
-          <div className="card">
-            <h2 style={{ marginTop: 0, fontSize: "18px", fontWeight: 600 }}>Pending Approvals</h2>
-            {workflows.length === 0 ? (
-              <p style={{ color: "var(--foreground-muted)", fontSize: "14px" }}>No workflows awaiting review.</p>
+      <div className="mt-6">
+        <GlassCard title="Pending workflow drafts" subtitle="Review generated outputs and choose whether to execute or discard them.">
+          <div className="grid gap-4">
+            {drafts.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-white/15 bg-black/20 p-6 text-sm text-zinc-400">
+                No pending drafts yet. Create one from the query panel.
+              </div>
             ) : (
-              workflows.map((wf) => (
-                <div key={wf.id} className={styles.workflowItem}>
-                  <div className={styles.workflowHeader}>
-                    <div className={styles.workflowType}>
-                      {wf.draftType}
-                      <div className={styles.workflowQuery}>
-                        {wf.query}
+              drafts.map((draft, index) => (
+                <article
+                  key={draft.id}
+                  className="rounded-3xl border border-white/10 bg-black/20 p-5 animate-[rise_0.8s_ease]"
+                  style={{ animationDelay: `${index * 80}ms` }}
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">{draft.draftType}</p>
+                        <h3 className="mt-2 text-xl font-semibold">{String(draft.draftContent.title ?? "Generated draft")}</h3>
                       </div>
+                      <p className="text-sm leading-7 text-zinc-300">{String(draft.draftContent.content ?? draft.query)}</p>
+                      {Array.isArray(draft.draftContent.actionItems) && draft.draftContent.actionItems.length > 0 ? (
+                        <ul className="space-y-2 text-sm text-zinc-400">
+                          {draft.draftContent.actionItems.map((item, itemIndex) => (
+                            <li key={`${draft.id}-${itemIndex}`} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                     </div>
-                    <span className="status-chip status-pending" style={{ fontFamily: "var(--font-mono)" }}>PENDING</span>
+                    <div className="flex shrink-0 gap-3">
+                      <button
+                        onClick={() => handleAction(draft.id, "EXECUTE")}
+                        className="rounded-full bg-emerald-400 px-4 py-2 text-sm font-medium text-slate-950 transition hover:scale-[1.02]"
+                      >
+                        Execute
+                      </button>
+                      <button
+                        onClick={() => handleAction(draft.id, "DISCARD")}
+                        className="rounded-full border border-white/15 px-4 py-2 text-sm font-medium text-white transition hover:border-rose-300/40 hover:bg-rose-400/10"
+                      >
+                        Discard
+                      </button>
+                    </div>
                   </div>
-
-                  <div className={styles.terminalLog} style={{ fontFamily: "var(--font-mono)" }}>
-                    <div className={styles.terminalTitle}>OUTPUT LOG</div>
-                    {wf.draftContent?.title && <div style={{ fontWeight: "bold", marginBottom: "8px" }}>{wf.draftContent.title}</div>}
-                    {wf.draftContent?.content}
-                  </div>
-
-                  <div className={styles.workflowActions}>
-                    <button onClick={() => handleAction(wf.id, "EXECUTE")} className="btn btn-success" style={{ flex: 1 }}>Approve & Execute</button>
-                    <button onClick={() => handleAction(wf.id, "DISCARD")} className="btn btn-danger" style={{ flex: 1 }}>Discard</button>
-                  </div>
-                </div>
+                </article>
               ))
             )}
           </div>
-        </div>
-      )}
-    </main>
+        </GlassCard>
+      </div>
+    </AppShell>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
+      <p className="text-sm text-zinc-400">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+    </div>
   );
 }

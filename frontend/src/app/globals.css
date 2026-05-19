@@ -1,178 +1,79 @@
+@import "tailwindcss";
+
 :root {
-  /* Technical Rigor Design Tokens */
-  --background: #0b1326;
-  --surface: #171f33;
-  --surface-low: #131b2e;
-  --surface-high: #222a3d;
-  --foreground: #dae2fd;
-  --foreground-muted: #c3c5d9;
-  
-  --primary: #0052ff;
-  --primary-hover: #004ced;
-  --primary-fixed: #dde1ff;
-  
-  --secondary: #00ff41; /* Terminal Green */
-  --secondary-muted: #00530e;
-  
-  --border: #434656;
-  --border-muted: #2d3449;
-  
-  --danger: #ffb4ab;
-  --danger-hover: #ffdad6;
-  --danger-bg: #93000a;
-  
-  --radius: 4px;
+  --background: #020617;
+  --foreground: #f8fafc;
 }
 
-body {
-  margin: 0;
-  padding: 0;
-  background-color: var(--background);
-  color: var(--foreground);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 * {
   box-sizing: border-box;
 }
 
-a {
-  color: var(--primary);
-  text-decoration: none;
-  transition: color 0.15s ease;
+html {
+  scroll-behavior: smooth;
 }
 
-a:hover {
-  color: var(--primary-fixed);
-}
-
-button {
-  cursor: pointer;
-}
-
-/* Base UI Components (Technical Rigor) */
-.card {
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 24px;
-  transition: border-color 0.15s ease;
-}
-
-.card:hover {
-  border-color: var(--primary-hover);
-}
-
-.input {
-  width: 100%;
-  padding: 12px 16px;
-  background-color: var(--background);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+body {
+  margin: 0;
+  background: var(--background);
   color: var(--foreground);
-  font-size: 14px;
-  transition: border-color 0.1s ease, box-shadow 0.1s ease;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
-.input:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 1px var(--primary);
+button,
+input,
+textarea,
+select {
+  font: inherit;
 }
 
-.btn {
-  padding: 8px 16px;
-  border-radius: var(--radius);
-  border: 1px solid transparent;
-  font-size: 12px;
-  text-transform: uppercase;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-.btn:active {
-  transform: translateY(1px);
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.btn-primary {
-  background-color: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
+@keyframes pulseGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(34, 211, 238, 0);
+    transform: translateY(0);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(34, 211, 238, 0.16);
+    transform: translateY(-2px);
+  }
 }
 
-.btn-primary:hover {
-  background-color: var(--primary-hover);
-}
-
-.btn-ghost {
-  background-color: transparent;
-  border-color: var(--border);
-  color: var(--foreground);
-}
-
-.btn-ghost:hover {
-  border-color: var(--foreground);
-}
-
-.btn-success {
-  background-color: var(--secondary-muted);
-  color: var(--secondary);
-  border-color: var(--secondary);
-}
-
-.btn-success:hover {
-  background-color: #007117;
-}
-
-.btn-danger {
-  background-color: var(--danger-bg);
-  color: var(--danger);
-  border-color: var(--danger);
-}
-
-.btn-danger:hover {
-  background-color: #ba000d;
-}
-
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-radius: var(--radius);
-  font-size: 10px;
-  text-transform: uppercase;
-  border: 1px solid;
-}
-
-.status-secure {
-  background-color: var(--secondary-muted);
-  color: var(--secondary);
-  border-color: var(--secondary);
-}
-
-.status-secure::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--secondary);
-}
-
-.status-pending {
-  background-color: #b45309;
-  color: #fcd34d;
-  border-color: #fcd34d;
-}
-
-.status-pending::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: #fcd34d;
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
 }
