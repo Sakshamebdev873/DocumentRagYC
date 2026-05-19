@@ -38,14 +38,12 @@ const prisma_1 = require("../config/prisma");
 const gemini_1 = require("../config/gemini");
 const pdfParse = require("pdf-parse");
 const xlsx = __importStar(require("xlsx"));
-// Basic chunking by paragraphs or large sentences to stay under limits
 const chunkText = (text, maxTokens = 500) => {
     const words = text.split(/\s+/);
     const chunks = [];
     let currentChunk = [];
     for (const word of words) {
         currentChunk.push(word);
-        // Rough heuristic: 1 token ~= 1.33 words
         if (currentChunk.length >= maxTokens) {
             chunks.push(currentChunk.join(" "));
             currentChunk = [];
@@ -56,8 +54,7 @@ const chunkText = (text, maxTokens = 500) => {
     }
     return chunks;
 };
-const processUpload = async (fileBuffer, filename, mimetype, userId, allowedRole, department) => {
-    // 1. Create initial Document entry tracking ingestion
+const processUpload = async (fileBuffer, filename, mimetype, userId, allowedRole, department, visibleToUserIds) => {
     const document = await prisma_1.prisma.document.create({
         data: {
             filename,
@@ -65,12 +62,12 @@ const processUpload = async (fileBuffer, filename, mimetype, userId, allowedRole
             uploadedBy: userId,
             ingestionStatus: "PROCESSING",
             allowedRole,
-            department
-        }
+            department,
+            visibleToUserIds,
+        },
     });
     try {
         let rawText = "";
-        // 2. Extract Text based on mime type
         if (mimetype === "application/pdf") {
             const pdfData = await pdfParse(fileBuffer);
             rawText = pdfData.text;
@@ -81,8 +78,7 @@ const processUpload = async (fileBuffer, filename, mimetype, userId, allowedRole
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
             const jsonData = xlsx.utils.sheet_to_json(worksheet);
-            // Convert rows to semantic text
-            rawText = jsonData.map(row => JSON.stringify(row)).join("\n");
+            rawText = jsonData.map((row) => JSON.stringify(row)).join("\n");
         }
         else if (mimetype === "text/plain") {
             rawText = fileBuffer.toString("utf-8");
@@ -90,30 +86,27 @@ const processUpload = async (fileBuffer, filename, mimetype, userId, allowedRole
         else {
             throw new Error("Unsupported file type");
         }
-        // 3. Chunk Text
         const chunks = chunkText(rawText);
-        // 4. Generate Embeddings & Save
-        for (let i = 0; i < chunks.length; i++) {
-            const textChunk = chunks[i];
-            // Generate 768-dimensional vector via Gemini API
+        for (let index = 0; index < chunks.length; index += 1) {
+            const textChunk = chunks[index];
             const result = await gemini_1.embeddingModel.embedContent(textChunk);
             const embeddingValues = result.embedding.values;
             await prisma_1.prisma.documentChunk.create({
                 data: {
-                    chunkIndex: i,
+                    chunkIndex: index,
                     text: textChunk,
                     embedding: embeddingValues,
                     documentId: document.id,
                     allowedRole,
                     department,
-                    isActive: true
-                }
+                    visibleToUserIds,
+                    isActive: true,
+                },
             });
         }
-        // 5. Update Status
         await prisma_1.prisma.document.update({
             where: { id: document.id },
-            data: { ingestionStatus: "COMPLETED" }
+            data: { ingestionStatus: "COMPLETED" },
         });
         return document;
     }
@@ -122,8 +115,8 @@ const processUpload = async (fileBuffer, filename, mimetype, userId, allowedRole
             where: { id: document.id },
             data: {
                 ingestionStatus: "FAILED",
-                errorMessage: error.message || "Unknown error during ingestion"
-            }
+                errorMessage: error.message || "Unknown error during ingestion",
+            },
         });
         throw error;
     }

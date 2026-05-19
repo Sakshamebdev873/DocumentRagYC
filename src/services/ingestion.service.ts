@@ -4,15 +4,13 @@ const pdfParse = require("pdf-parse");
 import * as xlsx from "xlsx";
 import { Role } from "../../generated/prisma";
 
-// Basic chunking by paragraphs or large sentences to stay under limits
 const chunkText = (text: string, maxTokens: number = 500): string[] => {
   const words = text.split(/\s+/);
   const chunks: string[] = [];
   let currentChunk: string[] = [];
-  
+
   for (const word of words) {
     currentChunk.push(word);
-    // Rough heuristic: 1 token ~= 1.33 words
     if (currentChunk.length >= maxTokens) {
       chunks.push(currentChunk.join(" "));
       currentChunk = [];
@@ -30,9 +28,9 @@ export const processUpload = async (
   mimetype: string,
   userId: string,
   allowedRole: Role,
-  department: string | null
+  department: string | null,
+  visibleToUserIds: string[],
 ) => {
-  // 1. Create initial Document entry tracking ingestion
   const document = await prisma.document.create({
     data: {
       filename,
@@ -40,14 +38,14 @@ export const processUpload = async (
       uploadedBy: userId,
       ingestionStatus: "PROCESSING",
       allowedRole,
-      department
-    }
+      department,
+      visibleToUserIds,
+    },
   });
 
   try {
     let rawText = "";
 
-    // 2. Extract Text based on mime type
     if (mimetype === "application/pdf") {
       const pdfData = await pdfParse(fileBuffer);
       rawText = pdfData.text;
@@ -59,53 +57,47 @@ export const processUpload = async (
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       const jsonData = xlsx.utils.sheet_to_json(worksheet);
-      
-      // Convert rows to semantic text
-      rawText = jsonData.map(row => JSON.stringify(row)).join("\n");
+      rawText = jsonData.map((row) => JSON.stringify(row)).join("\n");
     } else if (mimetype === "text/plain") {
       rawText = fileBuffer.toString("utf-8");
     } else {
       throw new Error("Unsupported file type");
     }
 
-    // 3. Chunk Text
     const chunks = chunkText(rawText);
 
-    // 4. Generate Embeddings & Save
-    for (let i = 0; i < chunks.length; i++) {
-      const textChunk = chunks[i];
-      // Generate 768-dimensional vector via Gemini API
+    for (let index = 0; index < chunks.length; index += 1) {
+      const textChunk = chunks[index];
       const result = await embeddingModel.embedContent(textChunk);
       const embeddingValues = result.embedding.values;
 
       await prisma.documentChunk.create({
         data: {
-          chunkIndex: i,
+          chunkIndex: index,
           text: textChunk,
           embedding: embeddingValues,
           documentId: document.id,
           allowedRole,
           department,
-          isActive: true
-        }
+          visibleToUserIds,
+          isActive: true,
+        },
       });
     }
 
-    // 5. Update Status
     await prisma.document.update({
       where: { id: document.id },
-      data: { ingestionStatus: "COMPLETED" }
+      data: { ingestionStatus: "COMPLETED" },
     });
 
     return document;
-
   } catch (error: any) {
     await prisma.document.update({
       where: { id: document.id },
-      data: { 
+      data: {
         ingestionStatus: "FAILED",
-        errorMessage: error.message || "Unknown error during ingestion"
-      }
+        errorMessage: error.message || "Unknown error during ingestion",
+      },
     });
     throw error;
   }

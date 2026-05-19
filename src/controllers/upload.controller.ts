@@ -10,8 +10,7 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
     }
 
     const { allowedRole, department } = req.body;
-    
-    // Only ADMIN can upload documents intended for ADMIN-only viewing
+
     if (allowedRole === "ADMIN" && req.user!.role !== "ADMIN") {
       res.status(403).json({ error: "Only admins can upload admin-only documents" });
       return;
@@ -26,12 +25,13 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       req.file.mimetype,
       req.user!.userId,
       roleToAssign,
-      depToAssign
+      depToAssign,
+      [],
     );
 
-    res.status(202).json({ 
-      message: "File is being processed", 
-      documentId: document.id 
+    res.status(202).json({
+      message: "File is being processed. Assign visibility from the admin panel before employees can use it.",
+      documentId: document.id,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message || "Upload failed" });

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateWorkflowStatus = exports.getPendingWorkflows = void 0;
+exports.updateAdminWorkflowStatus = exports.updateWorkflowStatus = exports.getAdminPendingWorkflows = exports.getWorkflowHistory = exports.getPendingWorkflows = void 0;
 const workflow_schema_1 = require("../schemas/workflow.schema");
 const workflowService = __importStar(require("../services/workflow.service"));
 const getPendingWorkflows = async (req, res) => {
@@ -46,6 +46,26 @@ const getPendingWorkflows = async (req, res) => {
     }
 };
 exports.getPendingWorkflows = getPendingWorkflows;
+const getWorkflowHistory = async (req, res) => {
+    try {
+        const workflows = await workflowService.getWorkflowHistory(req.user.userId);
+        res.json(workflows);
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message || "Failed to fetch workflow history" });
+    }
+};
+exports.getWorkflowHistory = getWorkflowHistory;
+const getAdminPendingWorkflows = async (req, res) => {
+    try {
+        const workflows = await workflowService.getAllPendingWorkflows();
+        res.json(workflows);
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message || "Failed to fetch admin workflow queue" });
+    }
+};
+exports.getAdminPendingWorkflows = getAdminPendingWorkflows;
 const updateWorkflowStatus = async (req, res) => {
     try {
         const validatedData = workflow_schema_1.workflowActionSchema.parse(req.body);
@@ -61,3 +81,18 @@ const updateWorkflowStatus = async (req, res) => {
     }
 };
 exports.updateWorkflowStatus = updateWorkflowStatus;
+const updateAdminWorkflowStatus = async (req, res) => {
+    try {
+        const validatedData = workflow_schema_1.workflowActionSchema.parse(req.body);
+        const updated = await workflowService.updateWorkflowStatusAsAdmin(req.params.id, validatedData.action);
+        res.json(updated);
+    }
+    catch (error) {
+        if (error.name === "ZodError") {
+            res.status(400).json({ error: error.errors });
+            return;
+        }
+        res.status(400).json({ error: error.message || "Failed to process admin workflow action" });
+    }
+};
+exports.updateAdminWorkflowStatus = updateAdminWorkflowStatus;

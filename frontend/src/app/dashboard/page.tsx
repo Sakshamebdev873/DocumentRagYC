@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { GlassCard } from "@/components/GlassCard";
 import { getPendingWorkflows, runQuery, updateWorkflowAction } from "@/requests";
 import { useSession } from "@/lib/useSession";
-import type { WorkflowDraft } from "@/lib/types";
+import type { ApprovedAnswer, WorkflowDraft } from "@/lib/types";
 
 export default function DashboardPage() {
   const { ready, user, token } = useSession();
@@ -14,6 +15,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [latestApproved, setLatestApproved] = useState<ApprovedAnswer | null>(null);
 
   useEffect(() => {
     if (!ready || !token) return;
@@ -36,6 +38,7 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     setMessage(null);
+    setLatestApproved(null);
 
     try {
       const draft = await runQuery(query, token);
@@ -54,9 +57,16 @@ export default function DashboardPage() {
 
     setError(null);
     try {
-      await updateWorkflowAction(id, action, token);
+      const result = await updateWorkflowAction(id, action, token);
       await refreshDrafts(token);
-      setMessage(`Draft ${action === "EXECUTE" ? "executed" : "discarded"}.`);
+
+      if (action === "EXECUTE") {
+        setLatestApproved(result.approvedAnswer);
+        setMessage("Draft approved and saved as final answer.");
+      } else {
+        setLatestApproved(null);
+        setMessage("Draft discarded and recorded in workflow history.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed");
     }
@@ -66,87 +76,58 @@ export default function DashboardPage() {
 
   return (
     <AppShell user={user}>
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-4 sm:gap-5 xl:grid-cols-[1.15fr_0.85fr] xl:gap-6">
         <GlassCard
-          title="Ask the knowledge engine"
-          subtitle="Submit a secure prompt. The backend will create a human-review workflow draft from permitted document context."
+          title="Engineering knowledge workspace"
+          subtitle="Ask about runbooks, onboarding docs, API conventions, incident playbooks, and internal policies."
         >
-          <form onSubmit={submitQuery} className="space-y-4">
+          <form onSubmit={submitQuery} className="grid gap-4">
             <textarea
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+              placeholder="Ask about deployment steps, incident escalation, remote work policy, or API auth conventions"
+              className="min-h-[180px] rounded-[28px] border border-white/50 bg-white/70 px-5 py-4 text-base text-[#171326] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] outline-none transition focus:border-[#171326]/20 focus:ring-2 focus:ring-[#171326]/10"
               required
-              rows={6}
-              placeholder="Draft a regulatory summary for our HR retention policy changes..."
-              className="w-full rounded-3xl border border-white/10 bg-black/20 px-5 py-4 text-sm text-white outline-none transition focus:border-cyan-300/40 focus:bg-white/8"
             />
             <div className="flex flex-wrap items-center gap-3">
-              <button
-                disabled={loading}
-                className="rounded-full bg-cyan-400 px-5 py-3 font-medium text-slate-950 transition duration-300 hover:scale-[1.02] hover:bg-cyan-300 disabled:opacity-70"
-              >
-                {loading ? "Generating draft..." : "Generate workflow draft"}
+              <button type="submit" disabled={loading} className="theme-button-primary px-6 py-3 text-sm font-medium disabled:opacity-70">
+                {loading ? "Generating..." : "Create review draft"}
               </button>
-              {message ? <p className="text-sm text-emerald-300">{message}</p> : null}
-              {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+              <span className="text-sm text-[#6d6773]">Human review is required before an answer becomes trusted knowledge.</span>
             </div>
           </form>
+
+          {message ? <p className="mt-4 text-sm text-emerald-700">{message}</p> : null}
+          {error ? <p className="mt-2 text-sm text-rose-700">{error}</p> : null}
+          {latestApproved ? (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Link href="/answers" className="theme-button-secondary px-5 py-2.5 text-sm">
+                View approved answers
+              </Link>
+              <p className="text-sm text-[#5a5362]">Latest saved answer: {latestApproved.title}</p>
+            </div>
+          ) : null}
         </GlassCard>
 
-        <GlassCard title="Session context" subtitle="Your current access scope determines which document chunks can be retrieved.">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-            <Stat label="Role" value={user?.role ?? "-"} />
-            <Stat label="Department" value={user?.department ?? "Global"} />
-            <Stat label="Pending drafts" value={String(drafts.length)} />
-          </div>
-        </GlassCard>
-      </div>
-
-      <div className="mt-6">
-        <GlassCard title="Pending workflow drafts" subtitle="Review generated outputs and choose whether to execute or discard them.">
-          <div className="grid gap-4">
+        <GlassCard title="Pending drafts" subtitle="Review drafts before they become trusted answers for your team.">
+          <div className="grid gap-3 sm:gap-4">
             {drafts.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-white/15 bg-black/20 p-6 text-sm text-zinc-400">
-                No pending drafts yet. Create one from the query panel.
+              <div className="theme-panel rounded-[24px] p-5 text-sm text-[#6d6773] sm:rounded-[28px] sm:p-6">
+                No pending drafts. Ask a new engineering question to start a review.
               </div>
             ) : (
-              drafts.map((draft, index) => (
-                <article
-                  key={draft.id}
-                  className="rounded-3xl border border-white/10 bg-black/20 p-5 animate-[rise_0.8s_ease]"
-                  style={{ animationDelay: `${index * 80}ms` }}
-                >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">{draft.draftType}</p>
-                        <h3 className="mt-2 text-xl font-semibold">{String(draft.draftContent.title ?? "Generated draft")}</h3>
-                      </div>
-                      <p className="text-sm leading-7 text-zinc-300">{String(draft.draftContent.content ?? draft.query)}</p>
-                      {Array.isArray(draft.draftContent.actionItems) && draft.draftContent.actionItems.length > 0 ? (
-                        <ul className="space-y-2 text-sm text-zinc-400">
-                          {draft.draftContent.actionItems.map((item, itemIndex) => (
-                            <li key={`${draft.id}-${itemIndex}`} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                              {item}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </div>
-                    <div className="flex shrink-0 gap-3">
-                      <button
-                        onClick={() => handleAction(draft.id, "EXECUTE")}
-                        className="rounded-full bg-emerald-400 px-4 py-2 text-sm font-medium text-slate-950 transition hover:scale-[1.02]"
-                      >
-                        Execute
-                      </button>
-                      <button
-                        onClick={() => handleAction(draft.id, "DISCARD")}
-                        className="rounded-full border border-white/15 px-4 py-2 text-sm font-medium text-white transition hover:border-rose-300/40 hover:bg-rose-400/10"
-                      >
-                        Discard
-                      </button>
-                    </div>
+              drafts.map((draft) => (
+                <article key={draft.id} className="theme-panel rounded-[26px] p-4 sm:p-5">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-[#7a7383] sm:text-xs sm:tracking-[0.3em]">{draft.draftType}</p>
+                  <h3 className="mt-2 text-lg font-semibold text-[#171326]">{String(draft.draftContent.title ?? draft.query)}</h3>
+                  <p className="mt-3 text-sm leading-7 text-[#5c5664]">{String(draft.draftContent.content ?? draft.query)}</p>
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    <button onClick={() => handleAction(draft.id, "EXECUTE")} className="theme-button-primary px-5 py-2.5 text-sm font-medium">
+                      Execute
+                    </button>
+                    <button onClick={() => handleAction(draft.id, "DISCARD")} className="theme-button-secondary px-5 py-2.5 text-sm font-medium">
+                      Discard
+                    </button>
                   </div>
                 </article>
               ))
@@ -155,14 +136,5 @@ export default function DashboardPage() {
         </GlassCard>
       </div>
     </AppShell>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-      <p className="text-sm text-zinc-400">{label}</p>
-      <p className="mt-2 text-2xl font-semibold">{value}</p>
-    </div>
   );
 }

@@ -42,17 +42,16 @@ const uploadDocument = async (req, res) => {
             return;
         }
         const { allowedRole, department } = req.body;
-        // Only ADMIN can upload documents intended for ADMIN-only viewing
         if (allowedRole === "ADMIN" && req.user.role !== "ADMIN") {
             res.status(403).json({ error: "Only admins can upload admin-only documents" });
             return;
         }
         const roleToAssign = allowedRole || "EMPLOYEE";
         const depToAssign = department || null;
-        const document = await ingestionService.processUpload(req.file.buffer, req.file.originalname, req.file.mimetype, req.user.userId, roleToAssign, depToAssign);
+        const document = await ingestionService.processUpload(req.file.buffer, req.file.originalname, req.file.mimetype, req.user.userId, roleToAssign, depToAssign, []);
         res.status(202).json({
-            message: "File is being processed",
-            documentId: document.id
+            message: "File is being processed. Assign visibility from the admin panel before employees can use it.",
+            documentId: document.id,
         });
     }
     catch (error) {

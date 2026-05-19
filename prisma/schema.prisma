@@ -63,6 +63,7 @@ model Document {
   // Security & RBAC
   allowedRole     Role            @default(EMPLOYEE) 
   department      String?         // If null, all departments can view
+  visibleToUserIds String[]       @default([]) @db.ObjectId
   
   // Edge Case 3: Soft Deletes
   isActive        Boolean         @default(true) 
@@ -89,6 +90,7 @@ model DocumentChunk {
   // Hard-copied metadata for MongoDB Atlas Vector Pre-Filtering
   allowedRole Role     
   department  String?
+  visibleToUserIds String[] @default([]) @db.ObjectId
   isActive    Boolean  @default(true) 
 
   createdAt   DateTime @default(now())
@@ -100,6 +102,10 @@ enum WorkflowStatus {
   PENDING
   EXECUTED
   DISCARDED
+}
+
+enum ApprovedAnswerStatus {
+  APPROVED
 }
 
 model WorkflowDraft {
@@ -114,4 +120,25 @@ model WorkflowDraft {
   updatedAt    DateTime       @updatedAt
 
   @@map("workflow_drafts")
+}
+
+model ApprovedAnswer {
+  id             String               @id @default(auto()) @map("_id") @db.ObjectId
+  workflowDraftId String              @unique @db.ObjectId
+  userId         String               @db.ObjectId
+  query          String
+  title          String
+  content        String
+  draftType      String
+  sourceChunks   String[]
+  allowedRole    Role                 @default(EMPLOYEE)
+  approvedByRole Role
+  approvedAt     DateTime
+  department     String?
+  visibleToUserIds String[]           @default([]) @db.ObjectId
+  status         ApprovedAnswerStatus @default(APPROVED)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@map("approved_answers")
 }

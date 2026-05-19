@@ -1,6 +1,9 @@
-﻿"use client";
+"use client";
 
 import type {
+  AdminDocument,
+  AdminEmployee,
+  ApprovedAnswer,
   CreateEmployeePayload,
   LoginResponse,
   UploadPayload,
@@ -53,16 +56,48 @@ export function getPendingWorkflows(token: string) {
   });
 }
 
-export function updateWorkflowAction(
-  id: string,
-  action: "EXECUTE" | "DISCARD",
-  token: string,
-) {
-  return request<WorkflowDraft>(`/workflow/${id}/action`, {
+export function getWorkflowHistory(token: string) {
+  return request<WorkflowDraft[]>("/workflow/history", {
+    token,
+  });
+}
+
+export function updateWorkflowAction(id: string, action: "EXECUTE" | "DISCARD", token: string) {
+  return request<{ draft: WorkflowDraft; approvedAnswer: ApprovedAnswer | null; alreadyProcessed: boolean }>(`/workflow/${id}/action`, {
     method: "POST",
     token,
     body: { action },
   });
+}
+
+export function getAdminPendingWorkflows(token: string) {
+  return request<WorkflowDraft[]>("/workflow/admin/pending", {
+    token,
+  });
+}
+
+export function updateAdminWorkflowAction(id: string, action: "EXECUTE" | "DISCARD", token: string) {
+  return request<{ draft: WorkflowDraft; approvedAnswer: ApprovedAnswer | null; alreadyProcessed: boolean }>(`/workflow/admin/${id}/action`, {
+    method: "POST",
+    token,
+    body: { action },
+  });
+}
+
+export function getApprovedAnswers(token: string) {
+  return request<ApprovedAnswer[]>("/answers", { token });
+}
+
+export function getApprovedAnswerById(id: string, token: string) {
+  return request<ApprovedAnswer>(`/answers/${id}`, { token });
+}
+
+export function getApprovedAnswerByDraftId(draftId: string, token: string) {
+  return request<ApprovedAnswer>(`/answers/by-draft/${draftId}`, { token });
+}
+
+export function getAdminApprovedAnswers(token: string) {
+  return request<ApprovedAnswer[]>("/admin/answers", { token });
 }
 
 export function createEmployee(payload: CreateEmployeePayload, token: string) {
@@ -70,6 +105,26 @@ export function createEmployee(payload: CreateEmployeePayload, token: string) {
     method: "POST",
     token,
     body: payload,
+  });
+}
+
+export function getEmployees(token: string) {
+  return request<AdminEmployee[]>("/admin/users", {
+    token,
+  });
+}
+
+export function getAdminDocuments(token: string) {
+  return request<AdminDocument[]>("/admin/documents", {
+    token,
+  });
+}
+
+export function updateDocumentVisibility(documentId: string, visibleToUserIds: string[], token: string) {
+  return request<AdminDocument>(`/admin/documents/${documentId}/visibility`, {
+    method: "POST",
+    token,
+    body: { visibleToUserIds },
   });
 }
 

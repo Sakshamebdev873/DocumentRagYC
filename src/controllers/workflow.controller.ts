@@ -11,6 +11,24 @@ export const getPendingWorkflows = async (req: Request, res: Response): Promise<
   }
 };
 
+export const getWorkflowHistory = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const workflows = await workflowService.getWorkflowHistory(req.user!.userId);
+    res.json(workflows);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to fetch workflow history" });
+  }
+};
+
+export const getAdminPendingWorkflows = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const workflows = await workflowService.getAllPendingWorkflows();
+    res.json(workflows);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to fetch admin workflow queue" });
+  }
+};
+
 export const updateWorkflowStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const validatedData = workflowActionSchema.parse(req.body);
@@ -22,5 +40,19 @@ export const updateWorkflowStatus = async (req: Request, res: Response): Promise
       return;
     }
     res.status(400).json({ error: error.message || "Failed to process workflow action" });
+  }
+};
+
+export const updateAdminWorkflowStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const validatedData = workflowActionSchema.parse(req.body);
+    const updated = await workflowService.updateWorkflowStatusAsAdmin(req.params.id as string, validatedData.action);
+    res.json(updated);
+  } catch (error: any) {
+    if (error.name === "ZodError") {
+      res.status(400).json({ error: error.errors });
+      return;
+    }
+    res.status(400).json({ error: error.message || "Failed to process admin workflow action" });
   }
 };

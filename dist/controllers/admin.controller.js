@@ -33,15 +33,16 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createEmployee = void 0;
+exports.listApprovedAnswers = exports.updateDocumentVisibility = exports.listDocuments = exports.listEmployees = exports.createEmployee = void 0;
 const admin_schema_1 = require("../schemas/admin.schema");
 const adminService = __importStar(require("../services/admin.service"));
+const answerService = __importStar(require("../services/answer.service"));
 const createEmployee = async (req, res) => {
     try {
         const validatedData = admin_schema_1.createEmployeeSchema.parse(req.body);
         const newEmployee = await adminService.createEmployee({
             ...validatedData,
-            createdBy: req.user.userId
+            createdBy: req.user.userId,
         });
         res.status(201).json(newEmployee);
     }
@@ -54,3 +55,48 @@ const createEmployee = async (req, res) => {
     }
 };
 exports.createEmployee = createEmployee;
+const listEmployees = async (req, res) => {
+    try {
+        const employees = await adminService.listEmployees();
+        res.json(employees);
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message || "Failed to list employees" });
+    }
+};
+exports.listEmployees = listEmployees;
+const listDocuments = async (req, res) => {
+    try {
+        const documents = await adminService.listDocuments();
+        res.json(documents);
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message || "Failed to list documents" });
+    }
+};
+exports.listDocuments = listDocuments;
+const updateDocumentVisibility = async (req, res) => {
+    try {
+        const validatedData = admin_schema_1.assignDocumentVisibilitySchema.parse(req.body);
+        const document = await adminService.updateDocumentVisibility(req.params.id, validatedData.visibleToUserIds);
+        res.json(document);
+    }
+    catch (error) {
+        if (error.name === "ZodError") {
+            res.status(400).json({ error: error.errors });
+            return;
+        }
+        res.status(400).json({ error: error.message || "Failed to update document visibility" });
+    }
+};
+exports.updateDocumentVisibility = updateDocumentVisibility;
+const listApprovedAnswers = async (req, res) => {
+    try {
+        const answers = await answerService.getAdminApprovedAnswers();
+        res.json(answers);
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message || "Failed to list approved answers" });
+    }
+};
+exports.listApprovedAnswers = listApprovedAnswers;

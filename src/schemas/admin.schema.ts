@@ -5,3 +5,7 @@ export const createEmployeeSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
   department: z.string().optional(),
 });
+
+export const assignDocumentVisibilitySchema = z.object({
+  visibleToUserIds: z.array(z.string().min(1)).default([]),
+});

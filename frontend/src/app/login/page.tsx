@@ -1,5 +1,6 @@
-﻿"use client";
+"use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { login, saveSession } from "@/requests";
@@ -28,51 +29,61 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.18),_transparent_25%),linear-gradient(180deg,#020617_0%,#111827_50%,#020617_100%)] px-6 py-12 text-white">
-      <div className="grid w-full max-w-6xl gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="rounded-[32px] border border-white/10 bg-white/6 p-8 shadow-2xl backdrop-blur animate-[rise_0.8s_ease] md:p-10">
-          <p className="text-sm uppercase tracking-[0.35em] text-cyan-300">Secure access</p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight">Sign in to your enterprise knowledge workspace</h1>
-          <p className="mt-4 max-w-xl text-base leading-8 text-zinc-300">
-            Your backend expects AES-obfuscated request payloads and returns encrypted responses. This
-            frontend is already wired to that flow.
-          </p>
-          <div className="mt-10 grid gap-4 sm:grid-cols-3">
-            <Feature title="JWT" text="One-day session token" />
-            <Feature title="RBAC" text="Admin and employee roles" />
-            <Feature title="Secure" text="Encrypted payload transport" />
+    <main className="theme-shell flex min-h-screen items-center justify-center px-5 py-8 text-[#171326]">
+      <div className="grid w-full max-w-7xl gap-6 lg:grid-cols-[1.08fr_0.92fr]">
+        <section className="theme-panel overflow-hidden rounded-[36px] p-6 shadow-[0_24px_80px_rgba(35,28,57,0.08)] md:p-8">
+          <div className="rounded-[30px] bg-[linear-gradient(180deg,#f4efe7_0%,#ebe3d9_100%)] p-6 md:p-8">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm uppercase tracking-[0.35em] text-[#746b8d]">Secure access</p>
+              <Link href="/" className="theme-button-secondary px-4 py-2 text-sm">
+                Back to homepage
+              </Link>
+            </div>
+            <h1 className="mt-4 max-w-3xl text-5xl font-semibold tracking-tight text-[#171326] sm:text-6xl">
+              Sign in to your internal AI copilot for engineering and legal knowledge.
+            </h1>
+            <p className="mt-5 max-w-2xl text-base leading-8 text-[#665f6b]">
+              Search internal documents, review generated drafts, and approve the answers your teams can trust.
+            </p>
+            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+              <Feature title="Role-aware" text="Scoped by admin, employee, and department" />
+              <Feature title="Grounded" text="Answers stay tied to internal documents" />
+              <Feature title="Reviewable" text="Execute or discard every workflow draft" />
+            </div>
           </div>
         </section>
 
-        <section className="rounded-[32px] border border-cyan-400/15 bg-slate-950/70 p-8 shadow-2xl backdrop-blur animate-[rise_1s_ease] md:p-10">
+        <section className="theme-dark-card rounded-[36px] p-6 shadow-[0_24px_70px_rgba(24,18,40,0.22)] md:p-8">
+          <div className="mb-8">
+            <p className="text-xs uppercase tracking-[0.35em] text-white/60">Sign in</p>
+            <h2 className="mt-3 text-3xl font-semibold text-white">Access your knowledge command center</h2>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="mb-2 block text-sm text-zinc-300">Email</label>
+              <label className="mb-2 block text-sm text-white/70">Email</label>
               <input
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 type="email"
                 required
-                className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 outline-none transition focus:border-cyan-300/40 focus:bg-white/10"
-                placeholder="admin@company.com"
+                className="w-full rounded-[22px] border border-white/10 bg-white/7 px-4 py-3 text-white outline-none transition focus:border-white/20 focus:bg-white/10"
+                placeholder="admin@documentrag.dev"
               />
             </div>
             <div>
-              <label className="mb-2 block text-sm text-zinc-300">Password</label>
+              <label className="mb-2 block text-sm text-white/70">Password</label>
               <input
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 type="password"
                 required
-                className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 outline-none transition focus:border-cyan-300/40 focus:bg-white/10"
+                className="w-full rounded-[22px] border border-white/10 bg-white/7 px-4 py-3 text-white outline-none transition focus:border-white/20 focus:bg-white/10"
                 placeholder="********"
               />
             </div>
-            {error ? <p className="rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">{error}</p> : null}
-            <button
-              disabled={loading}
-              className="w-full rounded-2xl bg-cyan-400 px-4 py-3 font-semibold text-slate-950 transition duration-300 hover:scale-[1.01] hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-70"
-            >
+            {error ? <p className="rounded-[22px] border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">{error}</p> : null}
+            <button disabled={loading} className="theme-button-primary w-full px-4 py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-70">
               {loading ? "Signing in..." : "Sign in"}
             </button>
           </form>
@@ -84,9 +95,9 @@ export default function LoginPage() {
 
 function Feature({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
-      <p className="font-semibold">{title}</p>
-      <p className="mt-2 text-sm leading-7 text-zinc-400">{text}</p>
+    <div className="theme-panel rounded-[24px] p-4">
+      <p className="font-semibold text-[#171326]">{title}</p>
+      <p className="mt-2 text-sm leading-7 text-[#6d6773]">{text}</p>
     </div>
   );
 }

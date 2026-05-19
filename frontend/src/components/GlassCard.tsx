@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 export function GlassCard({
   title,
@@ -10,10 +10,10 @@ export function GlassCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-white/10 bg-white/6 p-6 shadow-2xl backdrop-blur animate-[rise_0.8s_ease]">
+    <section className="theme-panel rounded-[30px] p-6 shadow-[0_20px_60px_rgba(26,20,43,0.08)] animate-[rise_0.8s_ease] md:p-7">
       <div className="mb-5">
-        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-        {subtitle ? <p className="mt-2 text-sm leading-7 text-zinc-400">{subtitle}</p> : null}
+        <h2 className="text-[1.45rem] font-semibold tracking-tight text-[#151126]">{title}</h2>
+        {subtitle ? <p className="mt-2 max-w-2xl text-sm leading-7 text-[#6d6773]">{subtitle}</p> : null}
       </div>
       {children}
     </section>

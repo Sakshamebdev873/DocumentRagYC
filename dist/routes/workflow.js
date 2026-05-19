@@ -6,5 +6,8 @@ const auth_1 = require("../middlewares/auth");
 const router = (0, express_1.Router)();
 router.use(auth_1.requireAuth);
 router.get("/pending", workflow_controller_1.getPendingWorkflows);
+router.get("/history", workflow_controller_1.getWorkflowHistory);
 router.post("/:id/action", workflow_controller_1.updateWorkflowStatus);
+router.get("/admin/pending", auth_1.requireAdmin, workflow_controller_1.getAdminPendingWorkflows);
+router.post("/admin/:id/action", auth_1.requireAdmin, workflow_controller_1.updateAdminWorkflowStatus);
 exports.default = router;
