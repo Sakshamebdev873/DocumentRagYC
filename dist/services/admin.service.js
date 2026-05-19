@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateDocumentVisibility = exports.listDocuments = exports.listEmployees = exports.createEmployee = void 0;
+exports.deleteDocument = exports.updateDocumentVisibility = exports.listDocuments = exports.listEmployees = exports.createEmployee = void 0;
 const prisma_1 = require("../config/prisma");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const createEmployee = async (data) => {
@@ -101,3 +101,17 @@ const updateDocumentVisibility = async (documentId, visibleToUserIds) => {
     return updatedDocument;
 };
 exports.updateDocumentVisibility = updateDocumentVisibility;
+const deleteDocument = async (documentId) => {
+    const document = await prisma_1.prisma.document.findUnique({ where: { id: documentId } });
+    if (!document) {
+        throw new Error("Document not found");
+    }
+    await prisma_1.prisma.documentChunk.deleteMany({
+        where: { documentId },
+    });
+    await prisma_1.prisma.document.delete({
+        where: { id: documentId },
+    });
+    return { success: true };
+};
+exports.deleteDocument = deleteDocument;

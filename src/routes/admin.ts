@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {
   createEmployee,
-  listApprovedAnswers,
+  deleteDocument,
   listDocuments,
   listEmployees,
   updateDocumentVisibility,
@@ -16,6 +16,6 @@ router.post("/users", createEmployee);
 router.get("/users", listEmployees);
 router.get("/documents", listDocuments);
 router.post("/documents/:id/visibility", updateDocumentVisibility);
-router.get("/answers", listApprovedAnswers);
+router.delete("/documents/:id", deleteDocument);
 
 export default router;

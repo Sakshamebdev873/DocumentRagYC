@@ -1,17 +1,33 @@
 import express from "express";
+import cors from "cors";
 import authRoutes from "./routes/auth";
 import adminRoutes from "./routes/admin";
 import uploadRoutes from "./routes/upload";
 import queryRoutes from "./routes/query";
 import workflowRoutes from "./routes/workflow";
 import answerRoutes from "./routes/answers";
+import { decryptPayload, encryptResponse } from "./middlewares/obfuscation.middleware";
 
 const app = express();
 
-import cors from "cors";
-import { decryptPayload, encryptResponse } from "./middlewares/obfuscation.middleware";
+const allowedOrigins = (process.env.CORS_ORIGIN ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-app.use(cors());
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error("Not allowed by CORS"));
+    },
+  }),
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

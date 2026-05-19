@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -151,7 +151,7 @@ function pageTitle(pathname: string) {
   if (pathname.startsWith("/admin/ingestion")) return "Document ingestion";
   if (pathname.startsWith("/admin/rbac")) return "Role and access management";
   if (pathname.startsWith("/admin/monitor")) return "Workflow monitoring";
-  if (pathname.startsWith("/admin/answers")) return "Approved answer library";
+  if (pathname.startsWith("/admin/answers")) return "Admin approved answers";
   if (pathname.startsWith("/answers")) return "Trusted approved answers";
   if (pathname.startsWith("/workflows")) return "Workflow history";
   if (pathname.startsWith("/dashboard")) return "Engineering workspace";

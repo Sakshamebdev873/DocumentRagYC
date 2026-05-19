@@ -109,3 +109,21 @@ export const updateDocumentVisibility = async (documentId: string, visibleToUser
 
   return updatedDocument;
 };
+
+export const deleteDocument = async (documentId: string) => {
+  const document = await prisma.document.findUnique({ where: { id: documentId } });
+
+  if (!document) {
+    throw new Error("Document not found");
+  }
+
+  await prisma.documentChunk.deleteMany({
+    where: { documentId },
+  });
+
+  await prisma.document.delete({
+    where: { id: documentId },
+  });
+
+  return { success: true };
+};

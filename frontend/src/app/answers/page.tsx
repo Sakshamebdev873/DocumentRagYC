@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { GlassCard } from "@/components/GlassCard";
+import { LoadingGrid } from "@/components/LoadingCard";
 import { useSession } from "@/lib/useSession";
 import type { ApprovedAnswer } from "@/lib/types";
 import { getApprovedAnswers } from "@/requests";
@@ -49,7 +50,7 @@ export default function AnswersPage() {
 
         <GlassCard title="Approved answers" subtitle="Final answers for runbooks, onboarding docs, policies, and internal developer guidance.">
           {loading ? (
-            <div className="theme-panel rounded-[28px] p-6 text-sm text-[#6d6773]">Loading approved answers...</div>
+            <LoadingGrid count={3} />
           ) : answers.length === 0 ? (
             <div className="theme-panel rounded-[28px] p-6 text-sm text-[#6d6773]">
               No approved answers yet. Review and execute a draft to save trusted knowledge here.
@@ -57,28 +58,41 @@ export default function AnswersPage() {
           ) : (
             <div className="space-y-4">
               {answers.map((answer) => (
-                <article key={answer.id} className="theme-panel rounded-[30px] p-5">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.3em] text-[#7a7383]">{answer.draftType}</p>
-                      <h2 className="mt-3 text-xl font-semibold text-[#171326]">{answer.title}</h2>
-                      <p className="mt-2 text-sm text-[#6d6773]">From query: {answer.query}</p>
+                <article
+                  key={answer.id}
+                  className="rounded-[30px] border border-white/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(247,242,236,0.94))] p-5 shadow-[0_18px_42px_rgba(27,20,41,0.08)]"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] uppercase tracking-[0.3em] text-[#7a7383]">{answer.draftType}</p>
+                      <h2 className="mt-3 text-2xl font-semibold tracking-tight text-[#171326]">{answer.title}</h2>
+                      <p className="mt-2 text-sm leading-6 text-[#6d6773]">From query: {answer.query}</p>
                     </div>
-                    <div className="theme-chip rounded-[20px] px-4 py-3 text-sm text-[#5c5664] sm:min-w-[240px]">
-                      <p>Approved: {new Date(answer.approvedAt).toLocaleString()}</p>
-                      <p className="mt-1">Approved by: {answer.approvedByRole}</p>
-                      <p className="mt-1">Department: {answer.department ?? "All departments"}</p>
+
+                    <div className="w-full max-w-[280px] shrink-0 rounded-[24px] bg-white/80 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-[#746b8d]">Approval details</p>
+                      <div className="mt-3 space-y-2 text-sm text-[#5c5664]">
+                        <p>Approved: {new Date(answer.approvedAt).toLocaleString()}</p>
+                        <p>Approved by: {answer.approvedByRole}</p>
+                        <p>Department: {answer.department ?? "All departments"}</p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-[24px] bg-white/55 px-4 py-4 text-sm leading-7 text-[#4f4955] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
+                  <div className="mt-5 rounded-[24px] bg-white/72 px-5 py-5 text-[15px] leading-8 text-[#4f4955] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
                     {answer.content}
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-3 text-sm text-[#5c5664]">
-                    <span className="theme-chip rounded-full px-4 py-2">Status: {answer.status}</span>
-                    <span className="theme-chip rounded-full px-4 py-2">Visible role: {answer.allowedRole}</span>
-                    <span className="theme-chip rounded-full px-4 py-2">Sources: {answer.sourceChunks.length}</span>
+                  <div className="mt-5 flex flex-wrap gap-2.5">
+                    <span className="rounded-full border border-[#d7eadb] bg-[#eff8f1] px-4 py-2 text-xs font-semibold text-[#245237]">
+                      {answer.status}
+                    </span>
+                    <span className="rounded-full border border-[#ddd4e6] bg-white/85 px-4 py-2 text-xs font-semibold text-[#5f596d]">
+                      Role: {answer.allowedRole}
+                    </span>
+                    <span className="rounded-full border border-[#ddd4e6] bg-white/85 px-4 py-2 text-xs font-semibold text-[#5f596d]">
+                      Sources: {answer.sourceChunks.length}
+                    </span>
                   </div>
                 </article>
               ))}

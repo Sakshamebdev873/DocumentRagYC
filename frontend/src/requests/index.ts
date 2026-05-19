@@ -96,10 +96,6 @@ export function getApprovedAnswerByDraftId(draftId: string, token: string) {
   return request<ApprovedAnswer>(`/answers/by-draft/${draftId}`, { token });
 }
 
-export function getAdminApprovedAnswers(token: string) {
-  return request<ApprovedAnswer[]>("/admin/answers", { token });
-}
-
 export function createEmployee(payload: CreateEmployeePayload, token: string) {
   return request<Record<string, unknown>>("/admin/users", {
     method: "POST",
@@ -125,6 +121,13 @@ export function updateDocumentVisibility(documentId: string, visibleToUserIds: s
     method: "POST",
     token,
     body: { visibleToUserIds },
+  });
+}
+
+export function deleteAdminDocument(documentId: string, token: string) {
+  return request<{ success: boolean }>(`/admin/documents/${documentId}`, {
+    method: "DELETE",
+    token,
   });
 }
 

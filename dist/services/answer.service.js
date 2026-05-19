@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAdminApprovedAnswers = exports.getApprovedAnswerByDraftId = exports.getApprovedAnswerById = exports.getApprovedAnswers = void 0;
+exports.getApprovedAnswerByDraftId = exports.getApprovedAnswerById = exports.getApprovedAnswers = void 0;
 const prisma_1 = require("../config/prisma");
 function visibilityWhere(user) {
     const allowedRoles = user.role === "ADMIN" ? ["ADMIN", "EMPLOYEE"] : ["EMPLOYEE"];
@@ -47,9 +47,3 @@ const getApprovedAnswerByDraftId = async (draftId, user) => {
     return answer;
 };
 exports.getApprovedAnswerByDraftId = getApprovedAnswerByDraftId;
-const getAdminApprovedAnswers = async () => {
-    return prisma_1.prisma.approvedAnswer.findMany({
-        orderBy: { approvedAt: "desc" },
-    });
-};
-exports.getAdminApprovedAnswers = getAdminApprovedAnswers;

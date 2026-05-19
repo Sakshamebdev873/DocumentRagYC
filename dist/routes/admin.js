@@ -9,5 +9,5 @@ router.post("/users", admin_controller_1.createEmployee);
 router.get("/users", admin_controller_1.listEmployees);
 router.get("/documents", admin_controller_1.listDocuments);
 router.post("/documents/:id/visibility", admin_controller_1.updateDocumentVisibility);
-router.get("/answers", admin_controller_1.listApprovedAnswers);
+router.delete("/documents/:id", admin_controller_1.deleteDocument);
 exports.default = router;

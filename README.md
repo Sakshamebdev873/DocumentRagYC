@@ -1,6 +1,6 @@
 ﻿# DocumentRag
 
-DocumentRag is a secure internal AI copilot for software companies and legal teams. It combines retrieval, RBAC, human review, and final approved answers so teams can search internal documents, review grounded AI drafts, and save trusted knowledge artifacts.
+DocumentRag is a secure internal AI copilot for software companies and legal teams. It combines retrieval, explicit user access control, human review, and final approved answers so teams can search internal documents, review grounded AI drafts, and save trusted knowledge artifacts.
 
 ## What the product does
 
@@ -13,7 +13,7 @@ DocumentRag is built around a trust workflow instead of a loose chatbot flow:
 - approved drafts become canonical `ApprovedAnswer` records
 - approved answers can be reused as trusted internal knowledge
 
-This project currently supports engineering and legal-team testing scenarios such as:
+This project currently supports engineering and legal-team scenarios such as:
 
 - onboarding docs
 - incident runbooks
@@ -28,15 +28,17 @@ This project currently supports engineering and legal-team testing scenarios suc
 - Frontend: `Next.js 16`, `React 19`, `Tailwind CSS 4`
 - Backend: `Express 5`, `TypeScript`, `Prisma`, `MongoDB`
 - AI: `Google Gemini`
-- Security: JWT auth, AES payload obfuscation, role-aware and user-assigned visibility
+- Security: JWT auth, AES payload obfuscation, explicit user-assigned document visibility
 - Testing: `Vitest`
 
 ## Project structure
 
-- `src/` backend routes, services, middleware, schemas, seed logic
-- `frontend/` App Router frontend, session helpers, request client, admin pages
+- `src/` backend routes, services, middleware, schemas, and seed logic
+- `frontend/` App Router frontend, session helpers, request client, admin pages, and loading UI
 - `prisma/schema.prisma` MongoDB models for users, documents, chunks, workflow drafts, and approved answers
 - `src/scripts/seed.ts` reset-and-reseed script with engineering and legal test data
+- `render.yaml` Render backend deployment config
+- `frontend/vercel.json` Vercel frontend deployment config
 - `.orchids/orchids.json` local startup command metadata
 
 ## Core concepts
@@ -70,7 +72,7 @@ When a draft is discarded:
 
 ### Visibility model
 
-This project now uses explicit user assignment for document visibility.
+This project uses explicit user assignment for document visibility.
 
 That means:
 
@@ -79,24 +81,63 @@ That means:
 - admins explicitly assign which employee users can access each document
 - only assigned users can retrieve that document in queries
 - approved answers inherit visibility from the source document access set
-- admins can still view all documents and approved answers
+- admins can review approved answers in the admin UI
 
-This prevents one engineer from automatically seeing every other engineering document just because they share the same department label.
+## Hosting readiness
+
+This project is now prepared for:
+
+- frontend on `Vercel`
+- backend on `Render`
+
+Production readiness updates include:
+
+- backend build now runs `prisma generate` automatically
+- backend CORS can be restricted with `CORS_ORIGIN`
+- frontend now requires production env vars instead of falling back silently
+- deployment config files are included for Render and Vercel
 
 ## Environment variables
 
-Root `.env`:
+### Backend `.env`
+
+Use `.env.example` as the template.
+
+Required backend variables:
 
 - `DATABASE_URL`
 - `GEMINI_API_KEY`
 - `JWT_SECRET`
 - `PORT`
 - `OBFUSCATION_KEY`
+- `CORS_ORIGIN`
 
-Frontend `.env.local`:
+Example:
 
-- `NEXT_PUBLIC_API_URL` default: `http://localhost:3001/api`
-- `NEXT_PUBLIC_OBFUSCATION_KEY` should match backend `OBFUSCATION_KEY`
+```env
+DATABASE_URL=
+GEMINI_API_KEY=
+JWT_SECRET=
+PORT=3001
+OBFUSCATION_KEY=
+CORS_ORIGIN=http://localhost:3000
+```
+
+### Frontend `.env.local`
+
+Use `frontend/.env.example` as the template.
+
+Required frontend variables:
+
+- `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_OBFUSCATION_KEY`
+
+Example:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3001/api
+NEXT_PUBLIC_OBFUSCATION_KEY=enterprise-secret-key-123
+```
 
 ## Prerequisites
 
@@ -152,6 +193,52 @@ npm test
 ```
 
 Current automated tests cover the obfuscation helpers in `frontend/src/requests/obfuscation.test.ts`.
+
+## Deploying to Render and Vercel
+
+### Backend on Render
+
+Use the root project folder.
+
+Recommended settings:
+
+- Build Command: `npm install && npm run build`
+- Start Command: `npm start`
+
+Environment variables on Render:
+
+- `DATABASE_URL`
+- `GEMINI_API_KEY`
+- `JWT_SECRET`
+- `OBFUSCATION_KEY`
+- `CORS_ORIGIN`
+
+Set `CORS_ORIGIN` to your frontend URL, for example:
+
+```env
+CORS_ORIGIN=https://your-frontend.vercel.app
+```
+
+### Frontend on Vercel
+
+Use the `frontend` directory as the project root.
+
+Environment variables on Vercel:
+
+- `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_OBFUSCATION_KEY`
+
+Example:
+
+```env
+NEXT_PUBLIC_API_URL=https://your-render-api.onrender.com/api
+NEXT_PUBLIC_OBFUSCATION_KEY=your-shared-obfuscation-key
+```
+
+Important:
+
+- `NEXT_PUBLIC_OBFUSCATION_KEY` must match backend `OBFUSCATION_KEY`
+- otherwise requests and responses will fail
 
 ## Reset and reseed the database
 
@@ -213,8 +300,6 @@ The seed intentionally proves that visibility is user-specific.
   - `privacy-escalation-policy.txt`
   - `company-remote-work-policy.txt`
 
-This means two users in the same department can still see different data.
-
 ## Main user flows
 
 ### 1. Login
@@ -230,7 +315,8 @@ This means two users in the same department can still see different data.
 - admin uploads a `.txt`, `.pdf`, `.csv`, or `.xlsx` document
 - backend extracts text, chunks content, creates embeddings, and stores document records
 - uploaded documents start as admin-controlled assets
-- admin explicitly assigns which employees can access each document from the ingestion UI
+- admin can open a modal assignment flow to choose exactly which employees can access a document
+- admin can delete an uploaded document and reupload a new version
 
 ### 3. Employee creation
 
@@ -261,8 +347,16 @@ If no strong match is found, the app returns a missing-information draft that ex
 
 - executed drafts create `ApprovedAnswer` records
 - employees can view trusted final answers on `/answers`
-- admins can review all approved answers on `/admin/answers`
+- admins can review approved answers in `/admin/answers`
 - workflow history remains on `/workflows`
+
+### 7. Loading states
+
+The app now uses animated loading skeletons instead of plain loading text on key data pages such as:
+
+- `/answers`
+- `/admin/answers`
+- `/admin/ingestion`
 
 ## Frontend routes
 
@@ -296,7 +390,6 @@ If no strong match is found, the app returns a missing-information draft that ex
 - `GET /api/answers`
 - `GET /api/answers/:id`
 - `GET /api/answers/by-draft/:draftId`
-- `GET /api/admin/answers`
 
 ### Documents and admin
 
@@ -305,6 +398,7 @@ If no strong match is found, the app returns a missing-information draft that ex
 - `GET /api/admin/users`
 - `GET /api/admin/documents`
 - `POST /api/admin/documents/:id/visibility`
+- `DELETE /api/admin/documents/:id`
 
 ### Health
 
@@ -344,7 +438,12 @@ Use:
 
 Open `/admin/ingestion`.
 
-You should see uploaded documents and assigned-user controls.
+You should see:
+
+- uploaded document cards
+- a modal-based `Manage assignment` flow
+- delete-file controls
+- loading skeletons while document data is loading
 
 ### 5. Test engineering isolation
 
@@ -394,6 +493,7 @@ Expected result:
 - click `Execute` as user or admin
 - verify it appears in `/answers`
 - verify it is visible only to allowed users
+- verify admin can also review it in `/admin/answers`
 
 ### 8. Test discard behavior
 
@@ -419,4 +519,4 @@ This makes the product useful where internal accuracy, auditability, and control
 
 - the frontend and backend use obfuscated payload transport in addition to standard auth
 - the repository currently runs backend and frontend dev servers from `.orchids/orchids.json`
-- for production use, rotate secrets, remove hardcoded local credentials, and harden deployment settings
+- before production launch, rotate secrets and remove any exposed development credentials

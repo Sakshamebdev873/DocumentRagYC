@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { assignDocumentVisibilitySchema, createEmployeeSchema } from "../schemas/admin.schema";
 import * as adminService from "../services/admin.service";
-import * as answerService from "../services/answer.service";
 
 export const createEmployee = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -54,11 +53,11 @@ export const updateDocumentVisibility = async (req: Request, res: Response): Pro
   }
 };
 
-export const listApprovedAnswers = async (req: Request, res: Response): Promise<void> => {
+export const deleteDocument = async (req: Request, res: Response): Promise<void> => {
   try {
-    const answers = await answerService.getAdminApprovedAnswers();
-    res.json(answers);
+    const result = await adminService.deleteDocument(req.params.id as string);
+    res.json(result);
   } catch (error: any) {
-    res.status(500).json({ error: error.message || "Failed to list approved answers" });
+    res.status(400).json({ error: error.message || "Failed to delete document" });
   }
 };

@@ -33,10 +33,9 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.listApprovedAnswers = exports.updateDocumentVisibility = exports.listDocuments = exports.listEmployees = exports.createEmployee = void 0;
+exports.deleteDocument = exports.updateDocumentVisibility = exports.listDocuments = exports.listEmployees = exports.createEmployee = void 0;
 const admin_schema_1 = require("../schemas/admin.schema");
 const adminService = __importStar(require("../services/admin.service"));
-const answerService = __importStar(require("../services/answer.service"));
 const createEmployee = async (req, res) => {
     try {
         const validatedData = admin_schema_1.createEmployeeSchema.parse(req.body);
@@ -90,13 +89,13 @@ const updateDocumentVisibility = async (req, res) => {
     }
 };
 exports.updateDocumentVisibility = updateDocumentVisibility;
-const listApprovedAnswers = async (req, res) => {
+const deleteDocument = async (req, res) => {
     try {
-        const answers = await answerService.getAdminApprovedAnswers();
-        res.json(answers);
+        const result = await adminService.deleteDocument(req.params.id);
+        res.json(result);
     }
     catch (error) {
-        res.status(500).json({ error: error.message || "Failed to list approved answers" });
+        res.status(400).json({ error: error.message || "Failed to delete document" });
     }
 };
-exports.listApprovedAnswers = listApprovedAnswers;
+exports.deleteDocument = deleteDocument;

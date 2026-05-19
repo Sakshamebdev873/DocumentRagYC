@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.listAdminApprovedAnswers = exports.getApprovedAnswerByDraft = exports.getApprovedAnswer = exports.listApprovedAnswers = void 0;
+exports.getApprovedAnswerByDraft = exports.getApprovedAnswer = exports.listApprovedAnswers = void 0;
 const answerService = __importStar(require("../services/answer.service"));
 const listApprovedAnswers = async (req, res) => {
     try {
@@ -65,13 +65,3 @@ const getApprovedAnswerByDraft = async (req, res) => {
     }
 };
 exports.getApprovedAnswerByDraft = getApprovedAnswerByDraft;
-const listAdminApprovedAnswers = async (req, res) => {
-    try {
-        const answers = await answerService.getAdminApprovedAnswers();
-        res.json(answers);
-    }
-    catch (error) {
-        res.status(500).json({ error: error.message || "Failed to fetch approved answers" });
-    }
-};
-exports.listAdminApprovedAnswers = listAdminApprovedAnswers;

@@ -1,9 +1,10 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { GlassCard } from "@/components/GlassCard";
-import { getAdminDocuments, getEmployees, updateDocumentVisibility, uploadDocument } from "@/requests";
+import { LoadingGrid } from "@/components/LoadingCard";
+import { deleteAdminDocument, getAdminDocuments, getEmployees, updateDocumentVisibility, uploadDocument } from "@/requests";
 import { useSession } from "@/lib/useSession";
 import type { AdminDocument, AdminEmployee } from "@/lib/types";
 
@@ -17,12 +18,24 @@ export default function IngestionPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [assignmentTargetId, setAssignmentTargetId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ready || !token) return;
-    void Promise.all([loadDocuments(token), loadEmployees(token)]);
+    void loadPageData(token);
   }, [ready, token]);
+
+  async function loadPageData(authToken: string) {
+    setPageLoading(true);
+    try {
+      await Promise.all([loadDocuments(authToken), loadEmployees(authToken)]);
+    } finally {
+      setPageLoading(false);
+    }
+  }
 
   async function loadDocuments(authToken: string) {
     try {
@@ -94,14 +107,45 @@ export default function IngestionPage() {
     }
   }
 
+  async function handleDelete(documentId: string) {
+    if (!token) return;
+
+    setDeletingId(documentId);
+    setError(null);
+    setMessage(null);
+
+    try {
+      await deleteAdminDocument(documentId, token);
+      setDocuments((current) => current.filter((document) => document.id !== documentId));
+      setMessage("Document deleted. You can upload a fresh version now.");
+      if (assignmentTargetId === documentId) {
+        setAssignmentTargetId(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete document");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  const assignmentTarget = useMemo(
+    () => documents.find((document) => document.id === assignmentTargetId) ?? null,
+    [assignmentTargetId, documents],
+  );
+
+  const relevantEmployees = useMemo(() => {
+    if (!assignmentTarget) return [];
+    return employees.filter((employee) => !assignmentTarget.department || employee.department === assignmentTarget.department);
+  }, [assignmentTarget, employees]);
+
   if (!ready) return null;
 
   return (
     <AppShell user={user}>
       <div className="grid gap-4 sm:gap-5 xl:grid-cols-[1fr_0.95fr] xl:gap-6">
-        <GlassCard title="Upload protected documents" subtitle="Admins upload once, then explicitly assign which users can read each document.">
+        <GlassCard title="Upload protected documents" subtitle="Admins upload once, assign users with a cleaner modal flow, and can delete a file anytime before reuploading a new version.">
           <form onSubmit={handleUpload} className="space-y-4">
-            <label className="theme-panel block rounded-[24px] p-6 text-center transition hover:bg-white/80 sm:rounded-[28px] sm:p-8">
+            <label className="theme-panel block cursor-pointer rounded-[24px] p-6 text-center transition hover:bg-white/80 sm:rounded-[28px] sm:p-8">
               <input
                 type="file"
                 required
@@ -109,8 +153,8 @@ export default function IngestionPage() {
                 className="hidden"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
               />
-              <span className="block text-base font-medium text-[#171326] sm:text-lg">{file ? file.name : "Choose a document to upload"}</span>
-              <span className="mt-2 block text-sm text-[#756e7a]">PDF, spreadsheet, text, or office files</span>
+              <span className="block text-sm font-medium text-[#171326] sm:text-base">{file ? file.name : "Choose a document to upload"}</span>
+              <span className="mt-2 block text-xs text-[#756e7a] sm:text-sm">PDF, spreadsheet, text, or office files</span>
             </label>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -119,7 +163,7 @@ export default function IngestionPage() {
                 <select
                   value={allowedRole}
                   onChange={(event) => setAllowedRole(event.target.value as "EMPLOYEE" | "ADMIN")}
-                  className="theme-input w-full rounded-[18px] px-4 py-3 outline-none sm:rounded-[22px]"
+                  className="theme-input w-full cursor-pointer rounded-[18px] px-4 py-3 text-sm outline-none sm:rounded-[22px]"
                 >
                   <option value="EMPLOYEE">EMPLOYEE</option>
                   <option value="ADMIN">ADMIN</option>
@@ -131,7 +175,7 @@ export default function IngestionPage() {
                   value={department}
                   onChange={(event) => setDepartment(event.target.value)}
                   placeholder="ENGINEERING, LEGAL, FINANCE"
-                  className="theme-input w-full rounded-[18px] px-4 py-3 outline-none sm:rounded-[22px]"
+                  className="theme-input w-full rounded-[18px] px-4 py-3 text-sm outline-none sm:rounded-[22px]"
                 />
               </div>
             </div>
@@ -139,66 +183,150 @@ export default function IngestionPage() {
             {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
             {error ? <p className="text-sm text-rose-700">{error}</p> : null}
 
-            <button className="theme-button-primary w-full px-5 py-3 text-sm font-medium disabled:opacity-70 sm:w-auto" disabled={loading || !file}>
+            <button className="theme-button-primary w-full cursor-pointer px-5 py-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto" disabled={loading || !file}>
               {loading ? "Uploading..." : "Start ingestion"}
             </button>
           </form>
         </GlassCard>
 
-        <GlassCard title="Recent uploads" subtitle="Uploaded documents stay invisible to employees until you assign user access.">
-          <div className="space-y-4">
-            {documents.length === 0 ? (
-              <div className="theme-panel rounded-[20px] px-4 py-3 text-sm text-[#6d6773] sm:rounded-[24px]">
-                No uploaded documents yet.
-              </div>
-            ) : (
-              documents.map((document) => {
-                const relevantEmployees = employees.filter(
-                  (employee) => !document.department || employee.department === document.department,
-                );
-
-                return (
-                  <div key={document.id} className="theme-panel rounded-[24px] p-4 sm:p-5">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <p className="font-semibold text-[#171326]">{document.filename}</p>
-                        <p className="mt-1 text-sm text-[#6d6773]">
-                          {document.allowedRole} · {document.department ?? "No department label"} · {document.ingestionStatus}
-                        </p>
+        <GlassCard title="Recent uploads" subtitle="Each document stays private until you open assignment and choose exactly who should receive access.">
+          {pageLoading ? (
+            <LoadingGrid count={3} />
+          ) : (
+            <div className="space-y-4">
+              {documents.length === 0 ? (
+                <div className="theme-panel rounded-[20px] px-4 py-3 text-sm text-[#6d6773] sm:rounded-[24px]">
+                  No uploaded documents yet.
+                </div>
+              ) : (
+                documents.map((document) => (
+                  <div key={document.id} className="rounded-[28px] border border-white/55 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(247,242,236,0.92))] p-4 shadow-[0_18px_42px_rgba(27,20,41,0.08)] sm:p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-lg font-semibold tracking-tight text-[#171326] sm:text-xl">{document.filename}</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-[#ddd4e6] bg-white/85 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#5f596d]">
+                            {document.allowedRole}
+                          </span>
+                          <span className="rounded-full border border-[#ddd4e6] bg-white/85 px-3 py-1 text-[11px] text-[#6d6773]">
+                            {document.department ?? "Shared document"}
+                          </span>
+                          <span className="rounded-full border border-[#d7eadb] bg-[#eff8f1] px-3 py-1 text-[11px] font-semibold text-[#245237]">
+                            {document.ingestionStatus}
+                          </span>
+                        </div>
                       </div>
-                      <div className="theme-chip rounded-full px-3 py-1 text-xs">Assigned users: {document.visibleToUserIds.length}</div>
-                    </div>
 
-                    <div className="mt-4 grid gap-2">
-                      {relevantEmployees.length === 0 ? (
-                        <p className="text-sm text-[#6d6773]">No matching employees to assign yet.</p>
-                      ) : (
-                        relevantEmployees.map((employee) => {
-                          const active = document.visibleToUserIds.includes(employee.id);
-                          return (
-                            <button
-                              key={employee.id}
-                              onClick={() => void toggleAccess(document.id, employee.id)}
-                              disabled={savingId === document.id}
-                              className={
-                                active
-                                  ? "rounded-[18px] border border-[#8fd0a0] bg-[#8fd0a0]/18 px-4 py-3 text-left text-sm text-[#124326]"
-                                  : "rounded-[18px] border border-[#d8d3de] bg-white/60 px-4 py-3 text-left text-sm text-[#4f4955]"
-                              }
-                            >
-                              {employee.email} {active ? "· has access" : "· no access"}
-                            </button>
-                          );
-                        })
-                      )}
+                      <div className="w-full max-w-[340px] shrink-0 rounded-[24px] bg-white/80 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                        <div className="mb-3 flex items-center justify-between rounded-[18px] bg-[#f5f1f8] px-3 py-2">
+                          <p className="text-[11px] uppercase tracking-[0.18em] text-[#746b8d]">Access</p>
+                          <p className="text-xs font-semibold text-[#171326]">{document.visibleToUserIds.length} assigned</p>
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <button
+                            onClick={() => setAssignmentTargetId(document.id)}
+                            className="rounded-[18px] bg-[#171326] px-4 py-3 text-xs font-semibold text-[#fff8f0] shadow-[0_12px_28px_rgba(23,19,38,0.22)] transition hover:translate-y-[-1px] hover:bg-[#221c3b] cursor-pointer"
+                          >
+                            Manage assignment
+                          </button>
+                          <button
+                            onClick={() => void handleDelete(document.id)}
+                            disabled={deletingId === document.id}
+                            className="rounded-[18px] border border-[#e7b5bb] bg-[#fff7f8] px-4 py-3 text-xs font-semibold text-[#8a3340] transition hover:bg-[#ffedf0] cursor-pointer disabled:cursor-not-allowed disabled:opacity-70"
+                          >
+                            {deletingId === document.id ? "Deleting..." : "Delete file"}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                );
-              })
-            )}
-          </div>
+                ))
+              )}
+            </div>
+          )}
         </GlassCard>
       </div>
+
+      {assignmentTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#171326]/45 px-4 py-6 backdrop-blur-sm">
+          <div className="theme-panel w-full max-w-3xl rounded-[32px] p-5 shadow-[0_30px_80px_rgba(23,19,38,0.22)] sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.32em] text-[#7a7383]">Assignment center</p>
+                <h2 className="mt-2 text-xl font-semibold text-[#171326] sm:text-2xl">{assignmentTarget.filename}</h2>
+                <p className="mt-2 text-sm leading-6 text-[#5c5664]">
+                  Choose exactly which users should be able to query this document. This view makes it clear who can receive access and who cannot.
+                </p>
+              </div>
+              <button
+                onClick={() => setAssignmentTargetId(null)}
+                className="rounded-full border border-[#cfc7d8] bg-white px-4 py-2 text-xs font-semibold text-[#3e3749] transition hover:bg-[#f7f4fa] cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-3">
+              <div className="theme-panel rounded-[22px] p-4">
+                <p className="text-xs text-[#756e7a]">Allowed role</p>
+                <p className="mt-2 text-base font-semibold text-[#171326]">{assignmentTarget.allowedRole}</p>
+              </div>
+              <div className="theme-panel rounded-[22px] p-4">
+                <p className="text-xs text-[#756e7a]">Department</p>
+                <p className="mt-2 text-base font-semibold text-[#171326]">{assignmentTarget.department ?? "Shared"}</p>
+              </div>
+              <div className="theme-panel rounded-[22px] p-4">
+                <p className="text-xs text-[#756e7a]">Assigned users</p>
+                <p className="mt-2 text-base font-semibold text-[#171326]">{assignmentTarget.visibleToUserIds.length}</p>
+              </div>
+            </div>
+
+            <div className="mt-6 max-h-[420px] overflow-y-auto pr-1">
+              {relevantEmployees.length === 0 ? (
+                <div className="theme-panel rounded-[24px] p-5 text-sm text-[#6d6773]">
+                  No matching employees are available for this document yet.
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {relevantEmployees.map((employee) => {
+                    const active = assignmentTarget.visibleToUserIds.includes(employee.id);
+                    return (
+                      <button
+                        key={employee.id}
+                        onClick={() => void toggleAccess(assignmentTarget.id, employee.id)}
+                        disabled={savingId === assignmentTarget.id}
+                        className={[
+                          "cursor-pointer rounded-[24px] border px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-70",
+                          active
+                            ? "border-[#6daf7d] bg-[#ecf7ee] text-[#124326] shadow-[0_8px_20px_rgba(18,67,38,0.08)]"
+                            : "border-[#d7cfdf] bg-white text-[#4f4955] shadow-[0_8px_18px_rgba(23,19,38,0.06)] hover:border-[#171326]/25 hover:bg-[#faf8fc]",
+                        ].join(" ")}
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold break-all">{employee.email}</p>
+                            <p className="mt-1 text-xs opacity-75">Department: {employee.department ?? "No department"}</p>
+                          </div>
+                          <span
+                            className={
+                              active
+                                ? "rounded-full bg-[#124326] px-3 py-1 text-[11px] font-semibold text-white"
+                                : "rounded-full border border-[#d8d1e0] bg-[#f5f1f8] px-3 py-1 text-[11px] font-semibold text-[#5c5664]"
+                            }
+                          >
+                            {active ? "Assigned" : "Assign access"}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AppShell>
   );
 }

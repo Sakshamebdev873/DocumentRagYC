@@ -52,9 +52,3 @@ export const getApprovedAnswerByDraftId = async (draftId: string, user: AuthPayl
 
   return answer;
 };
-
-export const getAdminApprovedAnswers = async () => {
-  return prisma.approvedAnswer.findMany({
-    orderBy: { approvedAt: "desc" },
-  });
-};
